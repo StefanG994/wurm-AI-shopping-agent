@@ -6,7 +6,7 @@ import json
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 import re
 
 # ---------- Logging: rotating file + console ----------
@@ -58,7 +58,33 @@ class ChatRequest(BaseModel):
     languageId: Optional[str] = Field(None, description="sw-language-id header to localize responses")
     salesChannelId: Optional[str] = Field(None, description="Sales Channel ID from the storefront")
 
-
+    @field_validator('customerMessage')
+    @classmethod
+    def validate_customer_message(cls, v):
+        try:
+            if not isinstance(v, str):
+                raise ValueError('Customer message must be a string')
+            
+            cleaned_message = v.strip()
+            
+            if not cleaned_message:
+                raise ValueError('Customer message cannot be empty or contain only whitespace')
+            
+            if len(cleaned_message) < 1:
+                raise ValueError('Customer message is too short')
+            
+            max_length = 2000
+            if len(cleaned_message) > max_length:
+                raise ValueError(f'Customer message is too long (max {max_length} characters, got {len(cleaned_message)})')
+            
+            # Reject messages that are only special characters or numbers
+            if re.match(r'^[^a-zA-Z]*$', cleaned_message) and len(cleaned_message) > 50:
+                raise ValueError('Customer message appears to contain only special characters or numbers')
+            
+            return cleaned_message
+        except ValueError as e:
+            logging.getLogger("shopware_ai.middleware").error(e)
+            
 class WidgetProduct(BaseModel):
     referenceId: Union[str, float]
     name: Optional[str] = None

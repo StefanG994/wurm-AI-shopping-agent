@@ -4,6 +4,7 @@ from typing import Tuple, Dict, Any, List, Optional
 from dotenv import load_dotenv
 import logging
 from .prompts_translated.get_translated_prompt import get_translated_prompt
+from .multi_intent import build_multi_intent_prompt
 from pydantic import BaseModel
 
 # OpenAI SDK v1
@@ -288,12 +289,27 @@ class TestGPTResponse(BaseModel):
     message: str
     data: Optional[Dict[str, Any]] = None
 
-
+class MultiIntentResponse(BaseModel):
+    primary_intent: str
+    intent_sequence: List[str]
+    is_multi_intent: bool = False
 
 
 #################################################
 # GPT HANDLER
 #################################################
+
+async def classify_multi_intent(client, user_message: str) -> MultiIntentResponse:
+    prompt = build_multi_intent_prompt(user_message)
+    
+    response = await client.beta.chat.completions.parse(
+        model=OPENAI_MODEL_SMALL,
+        messages=prompt,
+        response_format=MultiIntentResponse,
+        temperature=0
+    )
+    
+    return response.choices[0].message.parsed
 
 async def test_gpt(customerMessage: str) -> Dict[str, Any]:
     """
