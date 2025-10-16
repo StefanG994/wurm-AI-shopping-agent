@@ -6,6 +6,7 @@ import json
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
+from handlers.gpt_handler import classify_multi_intent
 import re
 
 # ---------- Logging: rotating file + console ----------
@@ -142,6 +143,9 @@ async def health():
 @limiter.limit("200/minute")
 async def chat(req: ChatRequest, request: Request, response: Response):
     logging.getLogger("shopware_ai.middleware").info("REQUEST: %s", req)
+    response = await classify_multi_intent(req.customerMessage)
+    logging.getLogger("shopware_ai.middleware").info("Primary intent: %s", response.primary_intent)
+    logging.getLogger("shopware_ai.middleware").info("Intent Steps: %s", response.intent_sequence)
     return ChatResponse(
         ok=True,
         action="response",

@@ -13,12 +13,14 @@ try:
 except ImportError:
     OpenAI = None
 
+logger = logging.getLogger("shopware_ai.gpt")
+
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL_LARGE = os.getenv("OPENAI_MODEL_LARGE", "gpt-5")
-OPENAI_MODEL_SMALL = os.getenv("OPENAI_MODEL_SMALL", "gpt-5-nano")
+OPENAI_MODEL_LARGE = os.getenv("OPENAI_MODEL_LARGE", "")
+OPENAI_MODEL_SMALL = os.getenv("OPENAI_MODEL_SMALL", "")
 
-logger = logging.getLogger("shopware_ai.gpt")
+
 
 FUNCTION_SCHEMA = [
     # ---------- COMMUNICATION ----------
@@ -248,10 +250,17 @@ FUNCTION_SCHEMA = [
 ]
 
 
+
+_openai_client = None
 def _client():
+    global _openai_client
     if OpenAI is None:
         raise RuntimeError("Install openai>=1.0.0 to use the new SDK (pip install openai)")
-    return OpenAI(api_key=OPENAI_API_KEY)
+    if _openai_client is None:
+        _openai_client = OpenAI(api_key=OPENAI_API_KEY)
+    return _openai_client
+
+_client()
 
 def _build_messages_with_system(system_key: str,
                                 customerMessage: str,
@@ -299,16 +308,24 @@ class MultiIntentResponse(BaseModel):
 # GPT HANDLER
 #################################################
 
-async def classify_multi_intent(client, user_message: str) -> MultiIntentResponse:
-    prompt = build_multi_intent_prompt(user_message)
-    
-    response = await client.beta.chat.completions.parse(
+import asyncio
+from .multi_intent import build_multi_intent_prompt
+import time
+
+async def classify_multi_intent(user_message: str) -> MultiIntentResponse:
+    start = time.perf_counter()
+    prompt = build_multi_intent_prompt(user_message, True)
+    messages = prompt
+
+    response = await asyncio.to_thread(
+        _openai_client.beta.chat.completions.parse,
         model=OPENAI_MODEL_SMALL,
-        messages=prompt,
-        response_format=MultiIntentResponse,
-        temperature=0
+        messages=messages,
+        response_format=MultiIntentResponse
     )
-    
+
+    elapsed = time.perf_counter() - start
+    logger.info(f"INTENT CATEGORIZATION FINISHED IN: {elapsed:.2f} seconds")
     return response.choices[0].message.parsed
 
 async def test_gpt(customerMessage: str) -> Dict[str, Any]:
