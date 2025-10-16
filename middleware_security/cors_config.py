@@ -25,7 +25,8 @@ def get_cors_origins() -> List[str]:
         else:
             return [
                 # Ovde ubaciti pravi produkcijski domen i paziti da ne sadrzi kredencijale
-                "https://wurm:ETCxKZNkMSq2ucGY@wurm2.px-staging.de/store-api"
+                "https://wurm2.px-staging.de/",
+                "http://localhost:8000"
             ]
     
     elif env == "development":
@@ -33,14 +34,15 @@ def get_cors_origins() -> List[str]:
             return [origin.strip() for origin in cors_origins.split(",") if origin.strip()]
         else:
             return [
-                "http://localhost:3000"
+                "https://wurm2.px-staging.de/",
+                "http://localhost:8000"
             ]
     
     else:
         # Testing/staging
         return [
-            "https://staging.yourdomain.com",
-            "https://test.yourdomain.com"
+            "https://wurm2.px-staging.de/",
+            "http://localhost:8000"
         ]
 
 

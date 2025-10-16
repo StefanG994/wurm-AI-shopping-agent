@@ -146,7 +146,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         response.headers["X-Powered-By"] = "WURM AI Agent"  # Custom branding
         
         # Remove potentially sensitive headers which can leak server info
-        response.headers.pop("Server", None)
+        if "Server" in response.headers:
+            del response.headers["Server"]
         
         return response
 

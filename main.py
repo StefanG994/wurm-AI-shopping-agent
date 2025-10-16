@@ -113,8 +113,8 @@ async def health():
     return {"status": "ok"}
 
 @app.post("/chat", response_model=ChatResponse)
-@limiter.limit("10/minute")
-async def chat(req: ChatRequest, response: Response):
+@limiter.limit("200/minute")
+async def chat(req: ChatRequest, request: Request, response: Response):
     logging.getLogger("shopware_ai.middleware").info("REQUEST: %s", req)
     return ChatResponse(
         ok=True,
