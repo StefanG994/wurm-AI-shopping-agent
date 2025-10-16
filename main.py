@@ -4,7 +4,6 @@ import logging
 from logging.handlers import RotatingFileHandler
 import json
 from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 import re
@@ -35,19 +34,35 @@ logging.getLogger("shopware_ai.middleware").setLevel(root.level)
 logging.getLogger("shopware_ai.gpt").setLevel(root.level)
 logging.getLogger("shopware_ai.shopware").setLevel(root.level)
 
-# ------------------------------
-# FastAPI app & CORS
-# ------------------------------
-app = FastAPI(title="WURM Shopware AI Agent Middleware", version="0.3.0")
+# ----------------------------------------
+# FastAPI app with enhanced CORS, Helmet-like and Rate Limiting security
+# ----------------------------------------
+from middleware_security.cors_config import setup_cors
+from middleware_security.security import setup_security_headers
 
-origins = [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip()]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+app = FastAPI(
+    title=os.getenv("API_TITLE", "WURM Shopware AI Agent Middleware"), 
+    version=os.getenv("API_VERSION", "0.3.0"),
+    docs_url="/docs" if os.getenv("ENVIRONMENT", "development") == "development" else None,
+    redoc_url="/redoc" if os.getenv("ENVIRONMENT", "development") == "development" else None,
 )
+
+# Setup security middleware (order matters!)
+setup_security_headers(app)
+setup_cors(app)
+
+# Include security test routes (only in development)
+if os.getenv("ENVIRONMENT", "development") == "development":
+    from middleware_security.test_routes import router as security_test_router
+    app.include_router(security_test_router)
+
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded  
+ 
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ------------------------------
 # Pydantic base models to define
@@ -114,6 +129,26 @@ class ChatResponse(BaseModel):
     contextToken: Optional[str]
     data: Dict[str, Any] = {}
 
+# ------------------------------
+# Routes
+# ------------------------------
+@app.get("/health")
+async def health():
+    logger = logging.getLogger("shopware_ai.middleware")
+    logger.info("Health check")
+    return {"status": "ok"}
+
+@app.post("/chat", response_model=ChatResponse)
+@limiter.limit("200/minute")
+async def chat(req: ChatRequest, request: Request, response: Response):
+    logging.getLogger("shopware_ai.middleware").info("REQUEST: %s", req)
+    return ChatResponse(
+        ok=True,
+        action="response",
+        message="This is a placeholder response.",
+        contextToken=req.contextToken or "new-context-token",
+        data={"info": "More data can be added here."}
+    )
 
 # ------------------------------
 # Dev server (optional)
