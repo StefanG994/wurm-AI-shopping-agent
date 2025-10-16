@@ -23,9 +23,11 @@ python-multipart>=0.0.9
 tenacity>=8.2
 
 # Import logging
-logging>=0.4
+# logging>=0.4
 
 uvicorn[standard]>=0.23
+
+slowapi>=0.1.9
 
 # --- Graphiti for agent memory ---
 graphiti-core>=3.0.0
