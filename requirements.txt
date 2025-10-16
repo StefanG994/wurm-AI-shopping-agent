@@ -26,3 +26,6 @@ tenacity>=8.2
 logging>=0.4
 
 uvicorn[standard]>=0.23
+
+# --- Graphiti for agent memory ---
+graphiti-core>=3.0.0
