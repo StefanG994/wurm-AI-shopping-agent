@@ -6,8 +6,9 @@ import json
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
-from handlers.gpt_handler import classify_multi_intent
+from handlers.gpt_handlers.gpt_agents.intent_agent import IntentAgent
 import re
+
 
 # ---------- Logging: rotating file + console ----------
 LOG_DIR = os.getenv("LOG_DIR", "./logs")
@@ -38,6 +39,7 @@ logging.getLogger("shopware_ai.shopware").setLevel(root.level)
 # ----------------------------------------
 # FastAPI app with enhanced CORS, Helmet-like and Rate Limiting security
 # ----------------------------------------
+from handlers.gpt_handlers.gpt_agents import IntentAgent
 from middleware_security.cors_config import setup_cors
 from middleware_security.security import setup_security_headers
 
@@ -143,7 +145,8 @@ async def health():
 @limiter.limit("200/minute")
 async def chat(req: ChatRequest, request: Request, response: Response):
     logging.getLogger("shopware_ai.middleware").info("REQUEST: %s", req)
-    response = await classify_multi_intent(req.customerMessage)
+    intent_agent = IntentAgent()
+    response = await intent_agent.classify_multi_intent(req.customerMessage)
     logging.getLogger("shopware_ai.middleware").info("Primary intent: %s", response.primary_intent)
     logging.getLogger("shopware_ai.middleware").info("Intent Steps: %s", response.intent_sequence)
     return ChatResponse(

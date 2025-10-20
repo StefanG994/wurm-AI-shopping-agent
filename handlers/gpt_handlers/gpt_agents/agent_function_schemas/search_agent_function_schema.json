@@ -1,0 +1,128 @@
+[
+    {
+        "name": "search_product_by_productNumber",
+        "description": "Search products by product number via /store-api/product with optional listing criteria and shorthand filters.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "productNumber": {"type": "string", "description": "Product number to search for"},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 100, "description":"Number of items per result page"},
+                "quantity":{"type" : "integer", "description": "Total number of items found"},
+                "page": {"type": "integer", "minimum": 1},
+                "min_price": {"type": "number"},
+                "max_price": {"type": "number"}
+            },
+            "required": ["productNumber"]
+        }
+    },
+    {
+        "name": "search_products",
+        "description": "Search products via /store-api/search with optional listing criteria and shorthand filters.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "search": {"type": "string", "description": "Free-text query (e.g. 'wireless mouse')"},
+                "order": {"type": "string", "description": "Sorting key: score | name-asc | name-desc | price-asc | price-desc | topseller"},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 100, "description":"Number of items per result page"},
+                "quantity":{"type" : "integer", "description": "Total number of items found"},
+                "page": {"type": "integer", "minimum": 1},
+                "min_price": {"type": "number"},
+                "max_price": {"type": "number"},
+                "manufacturer": {"type": "string", "description": "Manufacturers (IDs separated by |)"},
+                "properties": {"type": "string", "description": "Property IDs separated by |"},
+                "shipping_free": {"type": "boolean"},
+                "rating": {"type": "integer", "minimum": 0, "maximum": 5},
+                "filter": {"type": "array", "items": {"type": "object"}, "description": "Advanced search criteria array (range/equals/etc.)"},
+                "includes": {"type": "object", "description": "Field projection map keyed by apiAlias"},
+                "associations": {"type": "object", "description": "Associations to hydrate (e.g. categories)"}
+            },
+            "required": ["search"]
+        }
+    },
+    {
+        "name": "list_products",
+        "description": "Entity search on /store-api/product using a raw criteria object.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "criteria": {"type": "object", "description": "Search Criteria object: page, limit, filter, sort, aggregations, etc."},
+                "includes": {"type": "object", "description": "Field projection map keyed by apiAlias"}
+            }
+        }
+    },
+    {
+        "name": "product_listing_by_category",
+        "description": "Fetch listing for a specific category via /store-api/product-listing/{categoryId}.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "category_id": {"type": "string", "description": "Category ID (32 hex)"},
+                "order": {"type": "string"},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+                "page": {"type": "integer", "minimum": 1},
+                "filter": {"type": "array", "items": {"type": "object"}},
+                "includes": {"type": "object"},
+                "associations": {"type": "object"}
+            },
+            "required": ["category_id"]
+        }
+    },
+    {
+        "name": "search_suggest",
+        "description": "Search preview suggestions via /store-api/search-suggest (lightweight listing, no aggregations).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "search": {"type": "string", "description": "Free-text query"},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+                "page": {"type": "integer", "minimum": 1},
+                "filter": {"type": "array", "items": {"type": "object"}},
+                "includes": {"type": "object"}
+            },
+            "required": ["search"]
+        }
+    },
+    {
+        "name": "get_product",
+        "description": "Fetch a single product by ID via /store-api/product/{productId}.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "productId": {"type": "string", "description": "Product ID (32 hex)"},
+                "includes": {"type": "object"},
+                "associations": {"type": "object"}
+            },
+            "required": ["productId"]
+        }
+    },
+    {
+        "name": "product_cross_selling",
+        "description": "Fetch cross-selling groups for a product via /store-api/product/{productId}/cross-selling.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "productId": {"type": "string", "description": "Product ID (32 hex)"},
+                "includes": {"type": "object"}
+            },
+            "required": ["productId"]
+        }
+    },
+    {
+        "name": "find_variant",
+        "description": "Find the best matching variant for a product via /store-api/product/{productId}/find-variant.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "productId": {"type": "string", "description": "Parent product ID (32 hex)"},
+                "options": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Option IDs (e.g., selected color/size option IDs)"
+                },
+                "switchedGroup": {"type": "string", "description": "Option group ID that was changed"},
+                "includes": {"type": "object"}
+            },
+            "required": ["productId", "options"]
+        }
+    }
+]

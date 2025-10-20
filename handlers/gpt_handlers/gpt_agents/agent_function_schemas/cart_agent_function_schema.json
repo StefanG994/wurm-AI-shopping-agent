@@ -1,0 +1,65 @@
+[
+     {
+        "name": "add_to_cart",
+        "description": "Add one or more products to the cart by product numbers or IDs.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+            "items": {
+                "type": "array",
+                "items": {
+                "type": "object",
+                "properties": {
+                    "productId": { "type": "string" },
+                    "productNumber": { "type": "string" },
+                    "quantity": { "type": "integer", "minimum": 1, "default": 1 }
+                },
+                "anyOf": [
+                    { "required": ["productId", "quantity"] },
+                    { "required": ["productNumber", "quantity"] }
+                ]
+                }
+            }
+            },
+            "required": ["items"]
+        }
+    },
+    {
+        "name": "update_cart_items",
+        "description": "Update quantity/referencedId for existing line items via /store-api/checkout/cart/line-item (PATCH).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "string", "description": "Line item ID in cart"},
+                            "quantity": {"type": "integer", "minimum": 0},
+                            "referencedId": {"type": "string"}
+                        },
+                        "required": ["id"]
+                    }
+                }
+            },
+            "required": ["items"]
+        }
+    },
+    {
+        "name": "remove_from_cart",
+        "description": "Remove one or more line items via /store-api/checkout/cart/line-item (DELETE).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "ids": {"type": "array", "items": {"type": "string"}}
+            },
+            "required": ["ids"]
+        }
+    },
+    {
+        "name": "delete_cart",
+        "description": "Delete the entire cart via /store-api/checkout/cart (DELETE). Use only when user clearly requests it.",
+        "parameters": {"type": "object", "properties": {}}
+    }
+]
