@@ -7,6 +7,11 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 import re
+from contextlib import asynccontextmanager
+from graphiti.graphiti_memory import GraphitiMemory
+from graphiti.dependencies import get_mem
+from graphiti.ontology import ENTITY_TYPES, EDGE_TYPES, EDGE_TYPE_MAP
+from graphiti.context_builder import build_context_outline
 
 # ---------- Logging: rotating file + console ----------
 LOG_DIR = os.getenv("LOG_DIR", "./logs")
@@ -40,11 +45,23 @@ logging.getLogger("shopware_ai.shopware").setLevel(root.level)
 from middleware_security.cors_config import setup_cors
 from middleware_security.security import setup_security_headers
 
+# Lifespan handler (startup/shutdown)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    mem = GraphitiMemory()
+    await mem.initialize(build_indices=True)
+    app.state.mem = mem
+    try:
+        yield
+    finally:
+        await app.state.mem.close()
+
 app = FastAPI(
     title=os.getenv("API_TITLE", "WURM Shopware AI Agent Middleware"), 
     version=os.getenv("API_VERSION", "0.3.0"),
     docs_url="/docs" if os.getenv("ENVIRONMENT", "development") == "development" else None,
     redoc_url="/redoc" if os.getenv("ENVIRONMENT", "development") == "development" else None,
+    lifespan=lifespan,
 )
 
 # Setup security middleware (order matters!)
@@ -112,16 +129,81 @@ async def health():
     logger.info("Health check")
     return {"status": "ok"}
 
+# ------------------------------
+# Test endpoints (dev-only)
+# ------------------------------
+from fastapi import Depends
+
+#Initialize GraphitiMemory knowledge graph on startup
+@app.on_event("startup")
+async def startup_event():
+    mem = app.state.mem
+    if not mem or not mem.initialized:
+        raise RuntimeError("GraphitiMemory not initialized on startup")
+    logging.getLogger("shopware_ai.middleware").info("GraphitiMemory initialized and ready")
+
+@app.post("/episodes/add")
+async def add_episode_dev(payload: dict, mem: GraphitiMemory = Depends(get_mem)):
+    """
+    Dev helper: { "name": "foo", "text": "some content", "description": "desc" }
+    """
+    if "json" in payload:
+        await mem.add_episode_json(
+            name=payload.get("name", "dev-json"),
+            payload=payload["json"],
+            description=payload.get("description", "dev-json"),
+            entity_types=ENTITY_TYPES,
+            edge_types=EDGE_TYPES,
+            edge_type_map=EDGE_TYPE_MAP,
+        )
+    else:
+        await mem.add_episode_text(
+            name=payload.get("name", "dev"),
+            text=payload["text"],
+            description=payload.get("description", "dev"),
+            entity_types=ENTITY_TYPES, 
+            edge_types=EDGE_TYPES, 
+            edge_type_map=EDGE_TYPE_MAP,
+        )
+    return {"ok": True}
+
+@app.get("/search")
+async def search_dev(q: str, mem: GraphitiMemory = Depends(get_mem)):
+    edges = await mem.search_edges(q, limit=12)
+    nodes = await mem.search_nodes_rrf(q, limit=12)
+    return {
+        "edges": [getattr(e, "fact", None) for e in getattr(edges, "edges", [])],
+        "nodes": [{"uuid": n.uuid, "name": getattr(n, "name", None)} for n in nodes],
+    }
+
+# ------------------------------
+# Modify /chat to ingest & use context
+# ------------------------------
+from handlers.gpt_handler import _client, TestGPTResponse
+
 @app.post("/chat", response_model=ChatResponse)
 @limiter.limit("200/minute")
-async def chat(req: ChatRequest, request: Request, response: Response):
+async def chat(req: ChatRequest, request: Request, response: Response, mem: GraphitiMemory = Depends(get_mem)):
     logging.getLogger("shopware_ai.middleware").info("REQUEST: %s", req)
+
+    # 1) Ingest user turn as an episode (grows long-term memory)
+    await mem.add_episode_text(
+        name=f"user:{req.languageId or 'default'}",
+        text=req.customerMessage,
+        description="user_message",
+        entity_types=ENTITY_TYPES, edge_types=EDGE_TYPES, edge_type_map=EDGE_TYPE_MAP,
+    )
+
+    # 2) Build contextual outline from the graph
+    outline = await build_context_outline(mem, req.customerMessage, limit=12)
+
+    # 3) (placeholder) Return outline for now; wire your LLM call later
     return ChatResponse(
         ok=True,
         action="response",
-        message="This is a placeholder response.",
+        message=f"(demo) Context outline:\n{outline}",
         contextToken=req.contextToken or "new-context-token",
-        data={"info": "More data can be added here."}
+        data={"note": "Replace this with GPT tool-use logic that calls Shopware APIs."}
     )
 
 # ------------------------------

@@ -1,12 +1,12 @@
 from __future__ import annotations
-
 import asyncio
 import json
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping, Optional
-
+from types import SimpleNamespace
+import copy
 from graphiti_core import Graphiti
 from graphiti_core.nodes import EpisodeType, EntityNode
 from graphiti_core.edges import EntityEdge
@@ -16,7 +16,7 @@ from graphiti_core.search.search_config_recipes import (
     EDGE_HYBRID_SEARCH_NODE_DISTANCE,
 )
 from graphiti_core.search.search_filters import SearchFilters
-from graphiti_core.search.models import RawEpisode
+from graphiti_core.utils.bulk_utils import RawEpisode
 
 # ---- Optional LLM client imports (use what you need) ----
 # OpenAI (default)
@@ -66,6 +66,7 @@ class GraphitiMemory:
 
         # Filled in by initialize()
         self.client: Optional[Graphiti] = None
+        self._initialized: bool = False
 
     # ------------------- lifecycle -------------------
 
@@ -74,12 +75,14 @@ class GraphitiMemory:
         self.client = self._make_graphiti_client()
         if build_indices:
             await self.client.build_indices_and_constraints()  # one-time setup
+        self._initialized = True
         # Note: close connection with .close()
 
     async def close(self) -> None:
         if self.client:
             await self.client.close()
             self.client = None
+        self._initialized = False
 
     # ------------------- ingestion: episodes -------------------
 
@@ -140,10 +143,10 @@ class GraphitiMemory:
     ) -> None:
         """Add a JSON episode (structured import)."""
         g = self._need()
-        # Graphiti accepts dict directly for JSON episodes per docs.
+        episode_body = json.dumps(payload)
         await g.add_episode(
             name=name,
-            episode_body=payload,
+            episode_body=episode_body,
             source=EpisodeType.json,
             source_description=description or "",
             reference_time=(reference_time or datetime.now(timezone.utc)),
@@ -184,14 +187,19 @@ class GraphitiMemory:
     ):
         """Hybrid search over edges; optionally rerank by graph distance to a focal node."""
         g = self._need()
-        if center_node_uuid:
-            return await g.search(query, center_node_uuid=center_node_uuid)
-        return await g.search(query, limit=limit)
+        num_results = limit if limit is not None else 10
+        edges = await g.search(
+            query,
+            center_node_uuid=center_node_uuid,
+            num_results=num_results,
+        )
+        return SimpleNamespace(edges=edges)
 
     async def search_nodes_rrf(self, query: str, *, limit: int = 25):
         """Node search using predefined RRF recipe."""
         g = self._need()
-        cfg = NODE_HYBRID_SEARCH_RRF(limit)
+        cfg = copy.deepcopy(NODE_HYBRID_SEARCH_RRF)
+        cfg.limit = limit
         results = await g._search(query, cfg)
         return results.nodes
 
@@ -245,7 +253,7 @@ class GraphitiMemory:
         group_id: str = "",
         created_at: Optional[datetime] = None,
     ) -> None:
-        """Add (or de-dupe & upsert) an (EntityNode)─[EntityEdge]→(EntityNode) triple."""
+        """Add (or de-dupe & upsert) an EntityNode -> EntityEdge -> EntityNode triple."""
         g = self._need()
         src = EntityNode(uuid=source_uuid, name=source_name, group_id=group_id)
         tgt = EntityNode(uuid=target_uuid, name=target_name, group_id=group_id)
@@ -279,13 +287,21 @@ class GraphitiMemory:
                 )
             )
             cross = OpenAIRerankerClient(config=LLMConfig(model=llm_cfg.small_model))
-            return Graphiti(self.db.uri, self.db.user, self.db.password,
-                            llm_client=OpenAIClient(config=llm_cfg),
-                            embedder=embedder,
-                            cross_encoder=cross)
+            return Graphiti(
+                self.db.uri,
+                self.db.user,
+                self.db.password,
+                llm_client=OpenAIClient(config=llm_cfg, reasoning=None, verbosity=None),
+                embedder=embedder,
+                cross_encoder=cross,
+            )
 
         raise ValueError(f"Unknown LLM backend: {self.llm.name}")
 
+    @property
+    def initialized(self) -> bool:
+        """Expose initialization state to callers (FastAPI startup checks etc.)."""
+        return self._initialized
 
 # --------------- quick smoke example ---------------
 
