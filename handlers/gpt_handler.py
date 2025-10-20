@@ -6,6 +6,8 @@ import logging
 from .prompts_translated.get_translated_prompt import get_translated_prompt
 from .multi_intent import MultiIntentResponse, build_multi_intent_prompt
 from pydantic import BaseModel
+from graphiti.context_builder import build_context_outline
+from graphiti.dependencies import get_mem
 
 # OpenAI SDK v1
 try:
@@ -261,32 +263,26 @@ def _client():
 
 _client()
 
-def _build_messages_with_system(system_key: str,
-                                customerMessage: str,
-                                *,
-                                language_id: Optional[str] = None,
-                                variables: Optional[Dict[str, Any]] = None,
-                                extra_sections: Optional[Dict[str, str]] = None) -> List[Dict[str, str]]:
-    """
-    Build messages for any agent using:
-      - translated system prompt (by system_key)
-      - Context from episodes in graph
-      - optional extra sections (e.g., SEED)
-    """
+async def _build_messages_with_system_async(system_key: str,
+                                            customerMessage: str,
+                                            *,
+                                            mem,
+                                            language_id: Optional[str] = None,
+                                            variables: Optional[Dict[str, Any]] = None,
+                                            extra_sections: Optional[Dict[str, str]] = None) -> List[Dict[str, str]]:
+
     system_prompt = get_translated_prompt(system_key, language_id=language_id, variables=variables or {})
+    outline = await build_context_outline(mem, customerMessage, limit=12)
 
     msgs: List[Dict[str, str]] = [
         {"role": "system", "content": "In the output JSON, 'steps' cannot be an empty array"},
         {"role": "system", "content": system_prompt.strip()},
         {"role": "user", "content": f"USER GOAL:\n{customerMessage}".strip()},
-        {"role": "user", "content": "CONTEXT_OUTLINE:\n" + "context outline goes here"},
+        {"role": "user", "content": "CONTEXT_OUTLINE:\n" + outline},
     ]
-    # Optional extra sections inserted before the strict-output instruction
     if extra_sections:
         for title, content in extra_sections.items():
             msgs.append({"role": "user", "content": f"{title}:\n{content}"})
-    # (Optional) log the outline for debugging
-    # logging.getLogger("shopware_ai.middleware").info("CONTEXT_OUTLINE:\n%s", outline)
     return msgs
 
 ################################################
