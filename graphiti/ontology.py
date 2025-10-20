@@ -52,10 +52,15 @@ ENTITY_TYPES = {
 EDGE_TYPES = {
     "WANTS": WantsEdge,
     "MENTIONS": MentionsEdge,
+    "LAST_VIEWED_PRODUCT": LastViewedProductEdge,
+    "HAS_IN_CART": HasInCartEdge,
+    "VARIANT_OF": VariantOfEdge,
 }
 
 # Optionally constrain which entity pairs can connect with specific edges:
 EDGE_TYPE_MAP = {
     ("User", "Product"): ["WANTS", "MENTIONS"],
     ("User", "Intent"): ["MENTIONS"],
+    ("Cart", "Product"): ["HAS_IN_CART"],
+    ("Product", "Product"): ["VARIANT_OF"],
 }
