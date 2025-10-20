@@ -1,0 +1,17 @@
+[
+    {
+        "name": "fetch_orders_list",
+        "description": "Fetches a list of orders via /store-api/checkout/order (POST).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "page": {"type": "integer", "minimum": 1},                
+                "limit": {"type": "integer", "minimum": 1, "maximum": 100, "description":"Number of items per result page"},
+                "filter": {"type": "array", "items": {"type": "object"}, "description": "Advanced search criteria array (range/equals/etc.)"},
+                "associations": {"type": "object"},                
+                "sort": {"type": "array", "items": {"type": "object"}, "description": "Sorting in the search result either in ASC or DESC order"},
+                "message": {"type": "string", "description": "Short description what you are doing BUT in a language which user was using."}
+            }
+        }
+    }
+]

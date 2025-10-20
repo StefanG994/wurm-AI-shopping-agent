@@ -1,0 +1,15 @@
+[
+    {
+        "name": "communication",
+        "description": "Ask the user for missing information. No Shopware API call.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "message": {"type": "string", "description": "Human-readable question or clarification for the user."},
+                "missing": {"type": "array", "items": {"type": "string"}, "description": "List of missing fields (e.g., ['quantity'])."},
+                "context": {"type": "object", "description": "Optional context to display (e.g., suggested products)."}
+            },
+            "required": ["message"]
+        }
+    }
+]

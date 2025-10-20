@@ -5,13 +5,15 @@ from logging.handlers import RotatingFileHandler
 import json
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+from handlers.gpt_handlers.gpt_agents.intent_agent import IntentAgent
 import re
 from contextlib import asynccontextmanager
 from graphiti.graphiti_memory import GraphitiMemory
 from graphiti.dependencies import get_mem
 from graphiti.ontology import ENTITY_TYPES, EDGE_TYPES, EDGE_TYPE_MAP
 from graphiti.context_builder import build_context_outline
+
 
 # ---------- Logging: rotating file + console ----------
 LOG_DIR = os.getenv("LOG_DIR", "./logs")
@@ -42,6 +44,7 @@ logging.getLogger("shopware_ai.shopware").setLevel(root.level)
 # ----------------------------------------
 # FastAPI app with enhanced CORS, Helmet-like and Rate Limiting security
 # ----------------------------------------
+from handlers.gpt_handlers.gpt_agents import IntentAgent
 from middleware_security.cors_config import setup_cors
 from middleware_security.security import setup_security_headers
 
@@ -90,7 +93,33 @@ class ChatRequest(BaseModel):
     languageId: Optional[str] = Field(None, description="sw-language-id header to localize responses")
     salesChannelId: Optional[str] = Field(None, description="Sales Channel ID from the storefront")
 
-
+    @field_validator('customerMessage')
+    @classmethod
+    def validate_customer_message(cls, v):
+        try:
+            if not isinstance(v, str):
+                raise ValueError('Customer message must be a string')
+            
+            cleaned_message = v.strip()
+            
+            if not cleaned_message:
+                raise ValueError('Customer message cannot be empty or contain only whitespace')
+            
+            if len(cleaned_message) < 1:
+                raise ValueError('Customer message is too short')
+            
+            max_length = 2000
+            if len(cleaned_message) > max_length:
+                raise ValueError(f'Customer message is too long (max {max_length} characters, got {len(cleaned_message)})')
+            
+            # Reject messages that are only special characters or numbers
+            if re.match(r'^[^a-zA-Z]*$', cleaned_message) and len(cleaned_message) > 50:
+                raise ValueError('Customer message appears to contain only special characters or numbers')
+            
+            return cleaned_message
+        except ValueError as e:
+            logging.getLogger("shopware_ai.middleware").error(e)
+            
 class WidgetProduct(BaseModel):
     referenceId: Union[str, float]
     name: Optional[str] = None
@@ -198,6 +227,10 @@ async def chat(req: ChatRequest, request: Request, response: Response, mem: Grap
     outline = await build_context_outline(mem, req.customerMessage, limit=12)
 
     # 3) (placeholder) Return outline for now; wire your LLM call later
+    intent_agent = IntentAgent()
+    response = await intent_agent.classify_multi_intent(req.customerMessage)
+    logging.getLogger("shopware_ai.middleware").info("Primary intent: %s", response.primary_intent)
+    logging.getLogger("shopware_ai.middleware").info("Intent Steps: %s", response.intent_sequence)
     return ChatResponse(
         ok=True,
         action="response",
