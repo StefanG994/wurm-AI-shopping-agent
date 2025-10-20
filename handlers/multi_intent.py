@@ -1,5 +1,7 @@
 from enum import Enum
-from typing import Dict, List
+from typing import Dict, List, Literal
+
+from openai import BaseModel
 
 class MessageCategory(Enum):
 
@@ -32,3 +34,20 @@ def build_multi_intent_prompt(user_message: str, concise: bool = False) -> List[
         {"role": "user", "content": user_message}
     ]
     return prompt
+
+class MultiIntentResponse(BaseModel):
+
+    AllowedIntent = Literal[
+        'product_search',
+        'add_to_cart',
+        'view_cart',
+        'remove_from_cart',
+        'view_order',
+        'greeting',
+        'unclear',
+    ]
+
+    primary_intent: AllowedIntent
+    intent_sequence: List[AllowedIntent]
+    is_multi_intent: bool = False
+

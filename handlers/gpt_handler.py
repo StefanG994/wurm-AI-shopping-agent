@@ -4,7 +4,7 @@ from typing import Tuple, Dict, Any, List, Optional
 from dotenv import load_dotenv
 import logging
 from .prompts_translated.get_translated_prompt import get_translated_prompt
-from .multi_intent import build_multi_intent_prompt
+from .multi_intent import MultiIntentResponse, build_multi_intent_prompt
 from pydantic import BaseModel
 
 # OpenAI SDK v1
@@ -17,9 +17,8 @@ logger = logging.getLogger("shopware_ai.gpt")
 
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL_LARGE = os.getenv("OPENAI_MODEL_LARGE", "")
-OPENAI_MODEL_SMALL = os.getenv("OPENAI_MODEL_SMALL", "")
-
+OPENAI_MODEL_LARGE = os.getenv("OPENAI_MODEL_LARGE", "gpt-5")
+OPENAI_MODEL_SMALL = os.getenv("OPENAI_MODEL_SMALL", "gpt-5-nano")
 
 
 FUNCTION_SCHEMA = [
@@ -298,17 +297,10 @@ class TestGPTResponse(BaseModel):
     message: str
     data: Optional[Dict[str, Any]] = None
 
-class MultiIntentResponse(BaseModel):
-    primary_intent: str
-    intent_sequence: List[str]
-    is_multi_intent: bool = False
-
-
 #################################################
 # GPT HANDLER
 #################################################
 
-import asyncio
 from .multi_intent import build_multi_intent_prompt
 import time
 
@@ -317,8 +309,7 @@ async def classify_multi_intent(user_message: str) -> MultiIntentResponse:
     prompt = build_multi_intent_prompt(user_message, True)
     messages = prompt
 
-    response = await asyncio.to_thread(
-        _openai_client.beta.chat.completions.parse,
+    response = await _openai_client.beta.chat.completions.parse(
         model=OPENAI_MODEL_SMALL,
         messages=messages,
         response_format=MultiIntentResponse
