@@ -1,5 +1,6 @@
 from __future__ import annotations
-from time import time
+import asyncio
+import time
 from handlers.gpt_handlers.gpt_agents.base_agent import BaseAgent
 from handlers.multi_intent import MultiIntentResponse, build_multi_intent_prompt
 
@@ -15,10 +16,11 @@ class IntentAgent(BaseAgent):
         prompt = build_multi_intent_prompt(user_message, True)
         messages = prompt
 
-        intent_response = await self.client.beta.chat.completions.parse(
+        intent_response = await asyncio.to_thread(
+            self.client.beta.chat.completions.parse,
             model=self.get_small_llm_model(),
             messages=messages,
-            response_format=MultiIntentResponse
+            response_format=MultiIntentResponse,
         )
 
         elapsed = time.perf_counter() - start
