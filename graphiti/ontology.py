@@ -3,6 +3,12 @@ from pydantic import BaseModel, Field
 from typing import Optional
 
 # --------- Example entities ----------
+class UserMessageEntity(BaseModel):
+    kind: str = Field(default="UserMessage")
+    message_id: str
+    content: str
+    timestamp: Optional[str] = None  # ISO 8601 format
+
 class UserEntity(BaseModel):
     kind: str = Field(default="User")
     display_name: str = Field(description="Human-readable user name")
@@ -42,9 +48,14 @@ class VariantOfEdge(BaseModel):
     name: str = Field(default="VARIANT_OF")
     variant_type: Optional[str] = None  # e.g., "color", "size"
 
+class HasIntentEdge(BaseModel):
+    name: str = Field(default="HAS_INTENT")
+    confidence: float = 0.9
+
 # Graphiti expects mapping dicts; you can pass these in add_episode* calls.
 ENTITY_TYPES = {
     "User": UserEntity,
+    "UserMessage": UserMessageEntity,
     "Product": ProductEntity,
     "Intent": IntentEntity,
 }
@@ -55,6 +66,7 @@ EDGE_TYPES = {
     "LAST_VIEWED_PRODUCT": LastViewedProductEdge,
     "HAS_IN_CART": HasInCartEdge,
     "VARIANT_OF": VariantOfEdge,
+    "HAS_INTENT": HasIntentEdge,
 }
 
 # Optionally constrain which entity pairs can connect with specific edges:
@@ -63,4 +75,6 @@ EDGE_TYPE_MAP = {
     ("User", "Intent"): ["MENTIONS"],
     ("Cart", "Product"): ["HAS_IN_CART"],
     ("Product", "Product"): ["VARIANT_OF"],
+    ("UserMessage", "Product"): ["MENTIONS", "LAST_VIEWED_PRODUCT"],
+    ("UserMessage", "Intent"): ["HAS_INTENT"],
 }

@@ -1,6 +1,7 @@
 from __future__ import annotations
+import asyncio
 import json
-from time import time
+import time
 from typing import Any, Dict, List
 from handlers.gpt_handlers.gpt_agents.base_agent import BaseAgent
 from handlers.prompts_translated.get_translated_prompt import get_translated_prompt
@@ -14,13 +15,14 @@ class PlanningAgent(BaseAgent):
     async def create_plan_with_tools(self, plan_name: str, message: str, tools: List[Dict[str, Any]]) -> Dict[str, Any]:
         start = time.perf_counter()
 
-        resp = await self.client.chat.completions.create(
+        resp = await asyncio.to_thread(
+            self.client.chat.completions.create,
             model=self.get_small_llm_model(),
             temperature=0.2,
             messages=message,
             tools=[{"type": "function", "function": f} for f in tools],
             tool_choice="none",
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
         )
         
         elapsed = time.perf_counter() - start
@@ -31,11 +33,12 @@ class PlanningAgent(BaseAgent):
     async def create_plan(self, plan_name: str, message: str) -> Dict[str, Any]:
         start = time.perf_counter()
 
-        resp = await self.client.chat.completions.create(
+        resp = await asyncio.to_thread(
+            self.client.chat.completions.create,
             model=self.get_small_llm_model(),
             temperature=0.2,
             messages=message,
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
         )
         
         elapsed = time.perf_counter() - start
