@@ -18,7 +18,6 @@ class ShopwareBaseClient:
         default_language_id: Optional[str] = None,
         timeout: float = os.getenv("TIMEOUT", 60.0),
         client: Optional[httpx.AsyncClient] = None,
-        name: Optional[str] = None,
     ):
         self.base_url = (base_url or os.getenv("SHOPWARE_API_BASE") or "").rstrip("/")
         if not self.base_url:
@@ -34,9 +33,8 @@ class ShopwareBaseClient:
         else:
             self._client = httpx.AsyncClient(base_url=self.base_url, timeout=_make_timeout(timeout))
             self._owns_client = True
-
-        logger_name = logger_name or self.__class__.__name__
-        self.logger = logging.getLogger(logger_name)
+            
+        self._log = logging.getLogger("shopware_ai.shopware")
 
     def _headers(
         self,

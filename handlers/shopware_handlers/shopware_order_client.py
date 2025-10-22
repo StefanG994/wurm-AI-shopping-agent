@@ -37,14 +37,14 @@ class OrderClient(ShopwareBaseClient):
             ]
         }
         
-        headers = self._headers(
+        headers = self.create_header(
             context_token=context_token,
             language_id=language_id,
             sales_channel_id=sales_channel_id,
             extra=extra_headers,
         )
 
-        self._log.info("fetch_orders_list: context_token=%s, headers=%s, payload=%s", context_token, headers, body)
+        self.logger.info("fetch_orders_list: context_token=%s, headers=%s, payload=%s", context_token, headers, body)
         resp = await self._client.request("POST", "/order", headers=headers, json=body)
 
         return wrap_response(resp)

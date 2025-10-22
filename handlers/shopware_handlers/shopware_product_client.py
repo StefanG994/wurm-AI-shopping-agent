@@ -9,6 +9,7 @@ from .shopware_utils import wrap_response
 class ProductClient(ShopwareBaseClient):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, name=self.__class__.__name__, **kwargs)
+        self.load_shopware_includes("shopware_product_includes.json")
 
     async def search_products(
         self,
@@ -120,14 +121,14 @@ class ProductClient(ShopwareBaseClient):
         if p is not None:
             params["p"] = p
 
-        self._log.info("search_products: params=%s, headers=%s, body=%s", params, headers, payload)
+        self.logger.info("search_products: params=%s, headers=%s, body=%s", params, headers, payload)
         try:
             resp = await self._client.post("/search", headers=headers, json=payload, params=params)
             resp.raise_for_status()
         except httpx.HTTPStatusError as e:
             if resp.status_code == 412 and context_token:
-                self._log.warning("search_products: 412 with context token; retrying without token")
-                hdrs = self._headers(
+                self.logger.warning("search_products: 412 with context token; retrying without token")
+                hdrs = self.create_header(
                     context_token=None,  # <- drop the token
                     language_id=language_id,
                     extra=headers,
@@ -152,13 +153,13 @@ class ProductClient(ShopwareBaseClient):
     ) -> Dict[str, Any]:
         """Get single product by ID."""
         payload = deepcopy(body or {})
-        headers = self._headers(
+        headers = self.create_header(
             context_token=context_token,
             language_id=language_id,
             sales_channel_id=sales_channel_id,
             extra=extra_headers,
         )
-        self._log.debug("get_product: productId=%s, headers=%s, body=%s", productId, headers, payload)
+        self.logger.debug("get_product: productId=%s, headers=%s, body=%s", productId, headers, payload)
         resp = await self._client.post(f"/product/{productId}", headers=headers, json=payload)
         return wrap_response(resp)
 
@@ -169,8 +170,8 @@ class ProductClient(ShopwareBaseClient):
     ) -> Dict[str, Any]:
         """List products by criteria."""
         payload = deepcopy(body or {})
-        headers = self._headers()
-        self._log.debug("list_products: headers=%s, body=%s", headers, payload)
+        headers = self.create_header()
+        self.logger.debug("list_products: headers=%s, body=%s", headers, payload)
         resp = await self._client.post("/product", headers=headers, json=payload)
         return wrap_response(resp)
 
@@ -189,13 +190,13 @@ class ProductClient(ShopwareBaseClient):
         payload: Dict[str, Any] = {"options": options}
         if switched_group:
             payload["switchedGroup"] = switched_group
-        headers = self._headers(
+        headers = self.create_header(
             context_token=context_token,
             language_id=language_id,
             sales_channel_id=sales_channel_id,
             extra=extra_headers,
         )
-        self._log.debug("find_variant: productId=%s, headers=%s, payload=%s", productId, headers, payload)
+        self.logger.debug("find_variant: productId=%s, headers=%s, payload=%s", productId, headers, payload)
         resp = await self._client.post(f"/product/{productId}/find-variant", headers=headers, json=payload)
         return wrap_response(resp)
 
@@ -215,13 +216,13 @@ class ProductClient(ShopwareBaseClient):
         payload = deepcopy(body or {})
         if p is not None:
             params["p"] = p
-        headers = self._headers(
+        headers = self.create_header(
             context_token=context_token,
             language_id=language_id,
             sales_channel_id=sales_channel_id,
             extra=extra_headers,
         )
-        self._log.debug("product_listing_by_category: category_id=%s, headers=%s, body=%s", category_id, headers, payload)
+        self.logger.debug("product_listing_by_category: category_id=%s, headers=%s, body=%s", category_id, headers, payload)
         resp = await self._client.post(f"/product-listing/{category_id}", params=params, headers=headers, json=payload)
         return wrap_response(resp)
 

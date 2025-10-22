@@ -17,13 +17,13 @@ class CartClient(ShopwareBaseClient):
         extra_headers: Optional[Mapping[str, str]] = None,
     ) -> Dict[str, Any]:
         """Get existing cart or create new one."""
-        headers = self._headers(
+        headers = self.create_header(
             context_token=context_token,
             language_id=language_id,
             sales_channel_id=sales_channel_id,
             extra=extra_headers,
         )
-        self._log.debug("get_or_create_cart: headers=%s", headers)
+        self.logger.debug("get_or_create_cart: headers=%s", headers)
         resp = await self._client.get("/checkout/cart", headers=headers)
         return wrap_response(resp)
 
@@ -35,12 +35,12 @@ class CartClient(ShopwareBaseClient):
         sales_channel_id: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Delete cart."""
-        headers = self._headers(
+        headers = self.create_header(
             context_token=context_token,
             sales_channel_id=sales_channel_id,
             extra=extra_headers,
         )
-        self._log.debug("delete_cart: headers=%s", headers)
+        self.logger.debug("delete_cart: headers=%s", headers)
         resp = await self._client.delete("/checkout/cart", headers=headers)
         return wrap_response(resp)
 
@@ -60,7 +60,7 @@ class CartClient(ShopwareBaseClient):
             "sw-context-token": context_token,
         }
         params = {'sw-language-id': language_id}
-        self._log.debug("add_line_items: headers=%s, payload=%s", headers, payload)
+        self.logger.debug("add_line_items: headers=%s, payload=%s", headers, payload)
         resp = await self._client.post("/checkout/cart/line-item", headers=headers, json=payload, params=params)
         return wrap_response(resp)
 
@@ -77,13 +77,13 @@ class CartClient(ShopwareBaseClient):
         if not context_token:
             raise ValueError("update_line_items: context_token is required")
         payload = {"items": list(items)}
-        headers = self._headers(
+        headers = self.create_header(
             context_token=context_token,
             language_id=language_id,
             sales_channel_id=sales_channel_id,
             extra=extra_headers,
         )
-        self._log.debug("update_line_items: context_token=%s, headers=%s, payload=%s", context_token, headers, payload)
+        self.logger.debug("update_line_items: context_token=%s, headers=%s, payload=%s", context_token, headers, payload)
         resp = await self._client.patch("/checkout/cart/line-item", headers=headers, json=payload)
         return wrap_response(resp)
 
@@ -100,12 +100,12 @@ class CartClient(ShopwareBaseClient):
         if not context_token:
             raise ValueError("remove_line_items: context_token is required")
         payload = {"ids": list(ids)}
-        headers = self._headers(
+        headers = self.create_header(
             context_token=context_token,
             language_id=language_id,
             sales_channel_id=sales_channel_id,
             extra=extra_headers,
         )
-        self._log.debug("remove_line_items: context_token=%s, headers=%s, payload=%s", context_token, headers, payload)
+        self.logger.debug("remove_line_items: context_token=%s, headers=%s, payload=%s", context_token, headers, payload)
         resp = await self._client.request("DELETE", "/checkout/cart/line-item", headers=headers, json=payload)
         return wrap_response(resp)
