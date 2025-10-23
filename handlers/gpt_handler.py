@@ -3,6 +3,7 @@ import json
 from typing import Tuple, Dict, Any, List, Optional
 from dotenv import load_dotenv
 import logging
+import asyncio
 from .prompts_translated.get_translated_prompt import get_translated_prompt
 from .multi_intent import MultiIntentResponse, build_multi_intent_prompt
 from pydantic import BaseModel
@@ -305,10 +306,11 @@ async def classify_multi_intent(user_message: str) -> MultiIntentResponse:
     prompt = build_multi_intent_prompt(user_message, True)
     messages = prompt
 
-    response = await _openai_client.beta.chat.completions.parse(
+    response = await asyncio.to_thread(
+        _openai_client.beta.chat.completions.parse,
         model=OPENAI_MODEL_SMALL,
         messages=messages,
-        response_format=MultiIntentResponse
+        response_format=MultiIntentResponse,
     )
 
     elapsed = time.perf_counter() - start

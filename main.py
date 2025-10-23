@@ -44,7 +44,7 @@ logging.getLogger("shopware_ai.shopware").setLevel(root.level)
 # ----------------------------------------
 # FastAPI app with enhanced CORS, Helmet-like and Rate Limiting security
 # ----------------------------------------
-from handlers.gpt_handlers.gpt_agents import IntentAgent
+from handlers.gpt_handlers.gpt_agents.intent_agent import IntentAgent
 from middleware_security.cors_config import setup_cors
 from middleware_security.security import setup_security_headers
 
@@ -212,32 +212,49 @@ from handlers.gpt_handler import _client, TestGPTResponse
 
 @app.post("/chat", response_model=ChatResponse)
 @limiter.limit("200/minute")
-async def chat(req: ChatRequest, request: Request, response: Response, mem: GraphitiMemory = Depends(get_mem)):
-    logging.getLogger("shopware_ai.middleware").info("REQUEST: %s", req)
+async def chat(
+    request: Request,
+    response: Response,
+    mem: GraphitiMemory = Depends(get_mem),
+):
+    # create chat_request from request body
+    body = await request.json()
+    chat_request = ChatRequest(**body)
+    logging.getLogger("shopware_ai.middleware").info("REQUEST: %s", request)  # Remove in production
 
-    # 1) Ingest user turn as an episode (grows long-term memory)
+    # 0. Find User's node in the graph (by contextToken or other means) - TODO
+
+    # 1. Format the input request. If voice, convert to text first (TODO). If text, validate, clean and use directly.
+
+    # 2. Use GraphitiMemory to ingest the user message as an episode (grows long-term memory)
     await mem.add_episode_text(
-        name=f"user:{req.languageId or 'default'}",
-        text=req.customerMessage,
+        name=f"user:{chat_request.languageId or 'default'}",
+        text=chat_request.customerMessage,
         description="user_message",
-        entity_types=ENTITY_TYPES, edge_types=EDGE_TYPES, edge_type_map=EDGE_TYPE_MAP,
+        entity_types=ENTITY_TYPES, 
+        edge_types=EDGE_TYPES, 
+        edge_type_map=EDGE_TYPE_MAP,
     )
 
-    # 2) Build contextual outline from the graph
-    outline = await build_context_outline(mem, req.customerMessage, limit=12)
-
-    # 3) (placeholder) Return outline for now; wire your LLM call later
+    # 3. Clarify user intent using Multi-Intent Classifier (from multi_intent.py)
     intent_agent = IntentAgent()
-    response = await intent_agent.classify_multi_intent(req.customerMessage)
+    response = await intent_agent.classify_multi_intent(chat_request.customerMessage)
     logging.getLogger("shopware_ai.middleware").info("Primary intent: %s", response.primary_intent)
     logging.getLogger("shopware_ai.middleware").info("Intent Steps: %s", response.intent_sequence)
+
+
+    # 4. Choose the starting node and Build contextual outline from the graph (relevant products, cart items, user preferences, etc.)
+
+    outline = await build_context_outline(mem, chat_request.customerMessage, limit=12)
+
     return ChatResponse(
         ok=True,
         action="response",
         message=f"(demo) Context outline:\n{outline}",
-        contextToken=req.contextToken or "new-context-token",
+        contextToken=chat_request.contextToken or "new-context-token",
         data={"note": "Replace this with GPT tool-use logic that calls Shopware APIs."}
     )
+    
 
 # ------------------------------
 # Dev server (optional)

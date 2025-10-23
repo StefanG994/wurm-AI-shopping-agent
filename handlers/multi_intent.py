@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Dict, List, Literal
 
-from openai import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 class MessageCategory(Enum):
 
@@ -36,8 +36,9 @@ def build_multi_intent_prompt(user_message: str, concise: bool = False) -> List[
     return prompt
 
 class MultiIntentResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
-    AllowedIntent = Literal[
+    primary_intent: Literal[
         'product_search',
         'add_to_cart',
         'view_cart',
@@ -46,8 +47,14 @@ class MultiIntentResponse(BaseModel):
         'greeting',
         'unclear',
     ]
-
-    primary_intent: AllowedIntent
-    intent_sequence: List[AllowedIntent]
+    intent_sequence: List[Literal[
+        'product_search',
+        'add_to_cart',
+        'view_cart',
+        'remove_from_cart',
+        'view_order',
+        'greeting',
+        'unclear',
+    ]]
     is_multi_intent: bool = False
 
