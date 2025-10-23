@@ -222,6 +222,8 @@ async def chat(
     chat_request = ChatRequest(**body)
     logging.getLogger("shopware_ai.middleware").info("REQUEST: %s", request)  # Remove in production
 
+    # 0. Find User's node in the graph (by contextToken or other means) - TODO
+
     # 1. Format the input request. If voice, convert to text first (TODO). If text, validate, clean and use directly.
 
     # 2. Use GraphitiMemory to ingest the user message as an episode (grows long-term memory)

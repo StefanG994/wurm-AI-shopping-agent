@@ -34,17 +34,8 @@ class BaseAgent:
 	def get_small_llm_model(self):
 		return OPENAI_MODEL_SMALL
 	
-	def load_function_schemas(self, schema_name: str):
+	def load_function_schemas(self, schema_name: str) -> List[Dict[str, Any]]:
 		base_dir = os.path.dirname(__file__)
 		schema_path = os.path.join(base_dir, schema_dir, schema_name)
 		with open(schema_path, "r", encoding="utf-8") as f:
-			self.tools =  json.load(f)
-		
-	def get_action_schema(self, action_name: str) -> Dict[str, Any]:
-		if self.tools is None:
-			return {}
-		
-		for schema in self.tools:
-			if schema["name"] == action_name:
-				return schema       
-
+			return json.load(f)

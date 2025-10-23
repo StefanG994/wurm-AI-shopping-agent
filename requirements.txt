@@ -30,6 +30,6 @@ uvicorn[standard]>=0.23
 slowapi>=0.1.9
 
 # --- Graphiti for agent memory ---
-graphiti-core>=3.0.0
+graphiti-core
 neo4j>=5.20
 pydantic-settings
