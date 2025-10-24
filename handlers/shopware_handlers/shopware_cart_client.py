@@ -7,6 +7,7 @@ from .shopware_utils import wrap_response
 class CartClient(ShopwareBaseClient):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, name=self.__class__.__name__, **kwargs)
+        self.load_shopware_includes("shopware_product_includes.json")
 
     async def get_or_create_cart(
         self,

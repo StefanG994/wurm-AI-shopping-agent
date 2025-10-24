@@ -221,7 +221,6 @@ async def chat(
     body = await request.json()
     chat_request = ChatRequest(**body)
     logging.getLogger("shopware_ai.middleware").info("REQUEST: %s", request)  # Remove in production
-
     # 0. Find User's node in the graph (by contextToken or other means) - TODO
 
     # 1. Format the input request. If voice, convert to text first (TODO). If text, validate, clean and use directly.
@@ -235,7 +234,6 @@ async def chat(
         edge_types=EDGE_TYPES, 
         edge_type_map=EDGE_TYPE_MAP,
     )
-
     # 3. Clarify user intent using Multi-Intent Classifier (from multi_intent.py)
     intent_agent = IntentAgent()
     response = await intent_agent.classify_multi_intent(chat_request.customerMessage)

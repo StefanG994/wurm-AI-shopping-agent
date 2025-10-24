@@ -4,7 +4,6 @@ import json
 import time
 from typing import Any, Dict, List
 from handlers.gpt_handlers.gpt_agents.base_agent import BaseAgent
-from handlers.prompts_translated.get_translated_prompt import get_translated_prompt
 
 class PlanningAgent(BaseAgent):
 
