@@ -3,6 +3,7 @@ import asyncio
 import time
 from handlers.gpt_handlers.gpt_agents.base_agent import BaseAgent
 from handlers.multi_intent import MultiIntentResponse, build_multi_intent_prompt
+from main import SimpleHeaderInfo
 
 class IntentAgent(BaseAgent):
 

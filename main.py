@@ -6,13 +6,13 @@ import json
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
-from handlers.gpt_handlers.gpt_agents.intent_agent import IntentAgent
 import re
 from contextlib import asynccontextmanager
 from graphiti.graphiti_memory import GraphitiMemory
 from graphiti.dependencies import get_mem
 from graphiti.ontology import ENTITY_TYPES, EDGE_TYPES, EDGE_TYPE_MAP
 from graphiti.context_builder import build_context_outline
+from handlers.gpt_handlers.gpt_agents.router_agent import RouterAgent
 
 
 # ---------- Logging: rotating file + console ----------
@@ -132,7 +132,6 @@ class WidgetProduct(BaseModel):
     maxPurchase: Optional[int] = None
     purchaseSteps: Optional[int] = None
 
-
 class WidgetCartItem(BaseModel):
     referenceId: Union[str, float]
     label: Optional[str] = None
@@ -149,6 +148,16 @@ class ChatResponse(BaseModel):
     contextToken: Optional[str]
     data: Dict[str, Any] = {}
 
+# Helper to extract headers into a simple object
+class SimpleHeaderInfo():
+    contextToken: Optional[str] = Field(None, description="Shopware sw-context-token if already known")
+    languageId: Optional[str] = Field(None, description="sw-language-id header to localize responses")
+    salesChannelId: Optional[str] = Field(None, description="Sales Channel ID from the storefront")
+    
+    def __init__(self, request: ChatRequest):
+        self.contextToken = request.contextToken
+        self.languageId = request.languageId
+        self.salesChannelId = request.salesChannelId
 # ------------------------------
 # Routes
 # ------------------------------
@@ -217,6 +226,8 @@ async def chat(
     response: Response,
     mem: GraphitiMemory = Depends(get_mem),
 ):
+    header_info = SimpleHeaderInfo(request)
+    
     # create chat_request from request body
     body = await request.json()
     chat_request = ChatRequest(**body)
@@ -235,11 +246,9 @@ async def chat(
         edge_type_map=EDGE_TYPE_MAP,
     )
     # 3. Clarify user intent using Multi-Intent Classifier (from multi_intent.py)
-    intent_agent = IntentAgent()
-    response = await intent_agent.classify_multi_intent(chat_request.customerMessage)
-    logging.getLogger("shopware_ai.middleware").info("Primary intent: %s", response.primary_intent)
-    logging.getLogger("shopware_ai.middleware").info("Intent Steps: %s", response.intent_sequence)
-
+    router_agent = RouterAgent(header_info)
+    response = await router_agent.get_response(chat_request.customerMessage)
+    logging.getLogger("shopware_ai.middleware").info("ROUTER RESPONSE: %s", response)
 
     # 4. Choose the starting node and Build contextual outline from the graph (relevant products, cart items, user preferences, etc.)
 

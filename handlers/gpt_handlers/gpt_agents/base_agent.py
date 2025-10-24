@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import logging
 
 from handlers.prompts_translated.get_translated_prompt import get_translated_prompt
+from main import SimpleHeaderInfo
 
 try:
 	from openai import OpenAI
@@ -20,10 +21,11 @@ OPENAI_MODEL_LARGE = os.getenv("OPENAI_MODEL_LARGE", "")
 OPENAI_MODEL_SMALL = os.getenv("OPENAI_MODEL_SMALL", "")
 
 class BaseAgent:
-	def __init__(self, name: str = "BaseAgent"):
+	def __init__(self, name: str = "BaseAgent", header_info: SimpleHeaderInfo = None):
 		self.name = name
 		self.logger = logging.getLogger(name)
 		self.client = self._create_client()
+		self.header_info = header_info
 
 	def _create_client(self):
 		if OpenAI is None:
