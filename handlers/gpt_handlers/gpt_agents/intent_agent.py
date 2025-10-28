@@ -4,14 +4,16 @@ import time
 from handlers.gpt_handlers.gpt_agents.base_agent import BaseAgent
 from handlers.multi_intent import MultiIntentResponse, build_multi_intent_prompt
 
-
 class IntentAgent(BaseAgent):
 
     def __init__(self):
         super().__init__(name=self.__class__.__name__)
+        # START TESTING PART
+        self.load_function_schemas("search_agent_function_schema.json")
+        #self.get_function_parameter_info("search_product_by_productNumber")
+        # END TESTING PART
 
     async def classify_multi_intent(self, user_message: str) -> MultiIntentResponse:
-
         start = time.perf_counter()
         prompt = build_multi_intent_prompt(user_message, True)
         messages = prompt

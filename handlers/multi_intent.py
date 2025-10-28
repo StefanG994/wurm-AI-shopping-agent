@@ -1,7 +1,7 @@
 from enum import Enum
-from typing import Dict, List, Literal
+from typing import Dict, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 class MessageCategory(Enum):
 
@@ -57,4 +57,7 @@ class MultiIntentResponse(BaseModel):
         'unclear',
     ]]
     is_multi_intent: bool = False
+    
+
+
 
