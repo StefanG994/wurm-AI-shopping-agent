@@ -55,7 +55,7 @@ class ProductClient(ShopwareBaseClient):
         sales_channel_id: Optional[str] = None,
         extra_headers: Optional[Mapping[str, str]] = None,
     ) -> Dict[str, Any]:
-
+        # START: TODO switch this part so that we get only payload and headers
         payload: Dict[str, Any] = {} if body is None else dict(body)
 
         def put(k: str, v: Any) -> None:
@@ -110,6 +110,8 @@ class ProductClient(ShopwareBaseClient):
         if only_aggregations is not None:
             payload["only-aggregations"] = only_aggregations
 
+        self.logger.info("[TEST] PAYLOAD IN SEARCH}, body=%s", payload)
+        # END: TODO switch this part so that we get only payload and headers
         # Headers + params
         headers = {
             "Accept": "application/json",

@@ -1,5 +1,8 @@
+import logging
+import re
 from typing import Any, Dict, Optional, Union
 import httpx
+from pydantic import BaseModel, Field, field_validator
 
 def _make_timeout(t: Union[httpx.Timeout, int, float, str, None]) -> httpx.Timeout:
     """Coerce various inputs into a valid httpx.Timeout."""
@@ -70,3 +73,80 @@ def sort_field(field: str, order: str = "ASC", natural_sorting: bool = False, ty
     if type_ is not None:
         out["type"] = type_
     return out
+
+# ------------------------------
+# Pydantic base models to define
+# ------------------------------
+class ChatRequest(BaseModel):
+    customerMessage: str = Field(..., description="User's natural language input")
+    contextToken: Optional[str] = Field(None, description="Shopware sw-context-token if already known")
+    languageId: Optional[str] = Field(None, description="sw-language-id header to localize responses")
+    salesChannelId: Optional[str] = Field(None, description="Sales Channel ID from the storefront")
+    customerNumber: Optional[str] = Field(None, description="Customer number if known")
+    uuid: Optional[str] = Field(None, description="Unique user identifier (e.g., session ID)")
+
+    @field_validator('customerMessage')
+    @classmethod
+    def validate_customer_message(cls, v):
+        try:
+            if not isinstance(v, str):
+                raise ValueError('Customer message must be a string')
+            
+            cleaned_message = v.strip()
+            
+            if not cleaned_message:
+                raise ValueError('Customer message cannot be empty or contain only whitespace')
+            
+            if len(cleaned_message) < 1:
+                raise ValueError('Customer message is too short')
+            
+            max_length = 2000
+            if len(cleaned_message) > max_length:
+                raise ValueError(f'Customer message is too long (max {max_length} characters, got {len(cleaned_message)})')
+            
+            # Reject messages that are only special characters or numbers
+            if re.match(r'^[^a-zA-Z]*$', cleaned_message) and len(cleaned_message) > 50:
+                raise ValueError('Customer message appears to contain only special characters or numbers')
+            
+            return cleaned_message
+        except ValueError as e:
+            logging.getLogger("shopware_ai.middleware").error(e)
+            
+class WidgetProduct(BaseModel):
+    referenceId: Union[str, float]
+    name: Optional[str] = None
+    price: Optional[float] = None
+    thumbnail: Optional[str] = None
+    available: Optional[bool] = None
+    stock: Optional[int] = None
+    ratingAverage: Optional[float] = None
+    minPurchase: Optional[int] = None
+    maxPurchase: Optional[int] = None
+    purchaseSteps: Optional[int] = None
+
+class WidgetCartItem(BaseModel):
+    referenceId: Union[str, float]
+    label: Optional[str] = None
+    productId: Optional[str] = None
+    quantity: int
+    unitPrice: Optional[float] = None
+    totalPrice: Optional[float] = None
+
+# Vratiti odgovor u strukturi koja odgovara Janku, ovde definisati strukture
+class ChatResponse(BaseModel):
+    ok: bool
+    action: str
+    message: str
+    contextToken: Optional[str]
+    data: Dict[str, Any] = {}
+ 
+# Helper to extract headers into a simple object
+class SimpleHeaderInfo():
+    contextToken: Optional[str] = Field(None, description="Shopware sw-context-token if already known")
+    languageId: Optional[str] = Field(None, description="sw-language-id header to localize responses")
+    salesChannelId: Optional[str] = Field(None, description="Sales Channel ID from the storefront")
+    
+    def __init__(self, request: ChatRequest):
+        self.contextToken = request.contextToken
+        self.languageId = request.languageId
+        self.salesChannelId = request.salesChannelId

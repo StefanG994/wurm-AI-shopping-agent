@@ -1,12 +1,12 @@
 from __future__ import annotations
 import json
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from dotenv import load_dotenv
 import logging
 
 from handlers.prompts_translated.get_translated_prompt import get_translated_prompt
-from main import SimpleHeaderInfo
+from handlers.shopware_handlers.shopware_utils import SimpleHeaderInfo
 
 try:
 	from openai import OpenAI
@@ -21,11 +21,10 @@ OPENAI_MODEL_LARGE = os.getenv("OPENAI_MODEL_LARGE", "")
 OPENAI_MODEL_SMALL = os.getenv("OPENAI_MODEL_SMALL", "")
 
 class BaseAgent:
-	def __init__(self, name: str = "BaseAgent", header_info: SimpleHeaderInfo = None):
+	def __init__(self, name: str = "BaseAgent"):
 		self.name = name
 		self.logger = logging.getLogger(name)
 		self.client = self._create_client()
-		self.header_info = header_info
 
 	def _create_client(self):
 		if OpenAI is None:
@@ -43,6 +42,7 @@ class BaseAgent:
 		schema_path = os.path.join(base_dir, schema_dir, schema_name)
 		with open(schema_path, "r", encoding="utf-8") as f:
 			self.tools = json.load(f)
+			self.logger.info("[TEST]FUNCTION SCHEMA %s", self.tools)
 		
 	def get_action_schema(self, action_name: str) -> Dict[str, Any]:
 		if self.tools is None:
@@ -52,14 +52,14 @@ class BaseAgent:
 			if item.get('name') == action_name:
 				return item
 
-	def get_function_parameter_info(self, function_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
+	def get_function_parameter_info(self, function_name: str, params: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
 		function_schema = self.get_action_schema(function_name)
 		if not function_schema:
 			raise RuntimeError(f"Error: Function '{function_name}' not found")
 
 		param_properties = function_schema.get("parameters", {}).get("properties", {})
 		required_params = function_schema.get("parameters", {}).get("required", [])
-		self.logger.info(f"REQUIRED PARAMS: {required_params}")
+		self.logger.info(f"[TEST] REQUIRED PARAMS: {required_params}")
 		payload: Dict[str, Any] = {}
 
 		def put(k: str, v: Any) -> None:
@@ -67,11 +67,13 @@ class BaseAgent:
 				payload[k] = v
 				
 		for param_name, param_info in param_properties.items():
-			self.logger.info(f"PARAM NAME: {param_name}, PARAM_INFO: {param_info}")
+			self.logger.info(f"[TEST] PARAM NAME: {param_name}, PARAM_INFO: {param_info}")
+			if param_value := params.get(param_name) and param_name in required_params:
+				required_params.remove(param_name)
 			put(param_name, params.get(param_name))
 
-		self.logger.info(f"PAYLOAD: {payload}")
-		return payload	
+		self.logger.info(f"[TEST] PAYLOAD: {payload}")
+		return payload, required_params
 	
 	def build_messages_with_system(self, system_key: str,
 				customerMessage: str,

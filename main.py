@@ -1,12 +1,9 @@
 import os, sys
-import asyncio
-from typing import Optional, List, Dict, Any, Tuple, Union
+from typing import Optional, Dict, Any, Tuple
 import logging
 from logging.handlers import RotatingFileHandler
 import json
 from fastapi import FastAPI, HTTPException, Request, Response
-from pydantic import BaseModel, Field, field_validator
-import re
 from contextlib import asynccontextmanager
 from graphiti.graphiti_memory import GraphitiMemory
 from graphiti.dependencies import get_mem
@@ -15,7 +12,9 @@ from graphiti.context_builder import build_context_outline
 from handlers.gpt_handlers.gpt_agents.intent_agent import IntentAgent
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded  
+from slowapi.errors import RateLimitExceeded
+
+from handlers.shopware_handlers.shopware_product_client import ProductClient  
 
 
 # ---------- Logging: rotating file + console ----------
@@ -47,6 +46,8 @@ logging.getLogger("shopware_ai.shopware").setLevel(root.level)
 # ----------------------------------------
 # FastAPI app with enhanced CORS, Helmet-like and Rate Limiting security
 # ----------------------------------------
+from handlers.gpt_handlers.gpt_agents.search_agent import SearchAgent
+from handlers.shopware_handlers.shopware_utils import ChatRequest, ChatResponse, SimpleHeaderInfo
 from middleware_security.cors_config import setup_cors
 from middleware_security.security import setup_security_headers
 
@@ -81,74 +82,6 @@ if os.getenv("ENVIRONMENT", "development") == "development":
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-# ------------------------------
-# Pydantic base models to define
-# ------------------------------
-class ChatRequest(BaseModel):
-    customerMessage: str = Field(..., description="User's natural language input")
-    contextToken: Optional[str] = Field(None, description="Shopware sw-context-token if already known")
-    languageId: Optional[str] = Field(None, description="sw-language-id header to localize responses")
-    salesChannelId: Optional[str] = Field(None, description="Sales Channel ID from the storefront")
-    customerNumber: Optional[str] = Field(None, description="Customer number if known")
-    uuid: Optional[str] = Field(None, description="Unique user identifier (e.g., session ID)")
-
-    @field_validator('customerMessage')
-    @classmethod
-    def validate_customer_message(cls, v):
-        try:
-            if not isinstance(v, str):
-                raise ValueError('Customer message must be a string')
-            
-            cleaned_message = v.strip()
-            
-            if not cleaned_message:
-                raise ValueError('Customer message cannot be empty or contain only whitespace')
-            
-            if len(cleaned_message) < 1:
-                raise ValueError('Customer message is too short')
-            
-            max_length = 2000
-            if len(cleaned_message) > max_length:
-                raise ValueError(f'Customer message is too long (max {max_length} characters, got {len(cleaned_message)})')
-            
-            # Reject messages that are only special characters or numbers
-            if re.match(r'^[^a-zA-Z]*$', cleaned_message) and len(cleaned_message) > 50:
-                raise ValueError('Customer message appears to contain only special characters or numbers')
-            
-            return cleaned_message
-        except ValueError as e:
-            logging.getLogger("shopware_ai.middleware").error(e)
-            
-class WidgetProduct(BaseModel):
-    referenceId: Union[str, float]
-    name: Optional[str] = None
-    price: Optional[float] = None
-    thumbnail: Optional[str] = None
-    available: Optional[bool] = None
-    stock: Optional[int] = None
-    ratingAverage: Optional[float] = None
-    minPurchase: Optional[int] = None
-    maxPurchase: Optional[int] = None
-    purchaseSteps: Optional[int] = None
-
-
-class WidgetCartItem(BaseModel):
-    referenceId: Union[str, float]
-    label: Optional[str] = None
-    productId: Optional[str] = None
-    quantity: int
-    unitPrice: Optional[float] = None
-    totalPrice: Optional[float] = None
-
-# Vratiti odgovor u strukturi koja odgovara Janku, ovde definisati strukture
-class ChatResponse(BaseModel):
-    ok: bool
-    action: str
-    message: str
-    contextToken: Optional[str]
-    data: Dict[str, Any] = {}
-
 
 async def _transcribe_audio_payload(payload: Dict[str, Any]) -> str:
     """
@@ -277,6 +210,7 @@ async def chat(
     mem: GraphitiMemory = Depends(get_mem),
 ):
     logging.getLogger("shopware_ai.middleware").info("REQUEST: %s", request)  # Remove in production
+    header_info = SimpleHeaderInfo(chat_request)
 
     # 0. The graph has multiple user nodes and products/actions linked to them. Find User's node in the graph (by uuid or customerNumber) and set it as a starting node for further search and episode adding.
     user_node_uuid = await _resolve_user_node(mem, chat_request)
@@ -304,6 +238,41 @@ async def chat(
     intent_result = await intent_agent.classify_multi_intent(chat_request.customerMessage)
     logging.getLogger("shopware_ai.middleware").info("Primary intent: %s", intent_result.primary_intent)
     logging.getLogger("shopware_ai.middleware").info("Intent Steps: %s", intent_result.intent_sequence)
+
+    # START: TODO- FOR TESTING ONLY
+    #router_agent = RouterAgent(header_info)
+    #plan = await router_agent.plan_router(chat_request.customerMessage)
+    #logging.getLogger("shopware_ai.middleware").info("Planned route: %s", json.dumps(plan))
+    # agent = (plan.get("agent") or "").lower().strip()
+    # steps = plan.get("steps") or []
+    search_agent = SearchAgent()
+    shopware_client = ProductClient()
+    search_plan = await search_agent.plan_search(chat_request.customerMessage, chat_request.languageId)
+    logging.getLogger("shopware_ai.middleware").info("Planned route: %s", json.dumps(search_plan))
+    steps = search_plan.get("steps") or []
+
+    for step in steps:
+        action = step.get("action")
+        params = step.get("parameters") or {}
+        if action != "communication":
+            payload, missing_params = search_agent.get_function_parameter_info(action, params)
+            logging.getLogger("shopware_ai.middleware").info("PAYLOAD AFTER METHOD: %s", json.dumps(payload))
+            logging.getLogger("shopware_ai.middleware").info("MISSING AFTER METHOD: %s", missing_params)
+            await shopware_client.search_products(
+                search=params.get("search") or params.get("keywords") or "",
+                order=params.get("order"),
+                limit=params.get("limit"),
+                page=params.get("page"),
+                min_price=params.get("min_price"),
+                max_price=params.get("max_price"),
+                manufacturer=params.get("manufacturer"),
+                properties=params.get("properties"),
+                shipping_free=params.get("shipping_free"),
+                rating=params.get("rating"),
+                filter=params.get("filter"),
+                associations=params.get("associations") or None,
+                **{"context_token": header_info.contextToken, "language_id": header_info.languageId, "sales_channel_id": header_info.salesChannelId})
+    # END: TODO- FOR TESTING ONLY
 
     #if action ne postoji/unclear -> pozvati komunikacijskog agenta i vrati nazad na intent agent
     #if intent.action[0].methods.length > 0: onda pozovi router agenta
