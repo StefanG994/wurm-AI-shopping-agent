@@ -1,0 +1,24 @@
+[
+    {
+        "Default":
+        {
+            "product_listing": ["elements", "total", "page", "limit", "sorting"],
+            "product_sorting": ["id", "translated"],
+            "product": ["referenceId", "name", "translated", "cover", "calculatedPrice", "purchaseSteps", "minPurchase", "maxPurchase", "available", "stock", "ratingAverage", "productNumber"],
+            "calculated_price": ["totalPrice", "listPrice"],
+            "product_media": ["media"],
+            "media": ["thumbnails"],
+            "media_thumbnail": ["width", "height", "url"]
+        }
+    },
+    {
+        "Product":
+        {
+            "product": ["referenceId", "name", "translated", "cover", "calculatedPrice", "purchaseSteps", "minPurchase", "maxPurchase", "available", "stock", "ratingAverage", "productNumber"],
+            "calculated_price": ["totalPrice", "listPrice"],
+            "product_media": ["media"],
+            "media": ["thumbnails"],
+            "media_thumbnail": ["width", "height", "url"]
+        }
+    }
+]
