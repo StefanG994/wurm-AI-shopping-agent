@@ -162,21 +162,11 @@ _PROMPTS: Dict[str, Dict[str, str]] = {
             'When the user indicates an intent to see the order status (e.g., "order status", "give me my order status", "what\'s my last order status"), set agent="order" with fetch_orders_list.'
         ),
         "SEARCH_AGENT": (
-            "You are the SearchAgent. PLAN ONLY search/list/detail/variant/cross-selling actions. Do NOT perform cart mutations here.\n\n"
-            "- Allowed actions = search_* / list_* / get_product / find_variant / product_cross_selling\n"
-            "- Prefer minimal payloads; omit includes unless needed.\n"
-            "- ONLY if some required parameter is missing in user messge: return one communication step asking for the missing piece.\n\n"
-            # "ALLOWED TOOLS:\n${SEARCH_TOOLS}\n\n"
-            "ALLOWED ACTIONS:\n"
-            "- communication\n- search_product_by_productNumber\n- search_products\n- list_products\n"
-            "- product_listing_by_category\n- search_suggest\n- get_product\n- product_cross_selling\n- find_variant\n\n"
-            "OUTPUT (STRICT JSON):\n"
-            "{\n"
-            '  \"mode\": \"single\",\n'
-            '  \"steps\": [{ \"action\": \"<communication|search_products|...>\", \"parameters\": { ... } }],\n'
-            '  \"done\": false,\n'
-            '  \"response_text\": \"<one short line for the UI>\"\n'
-            "}"
+            "You are the SearchAgent. Process the Customer's message and focus on the product."
+            "ALLOWED TOOLS:\n${SEARCH_TOOLS}\n\n"
+            "From Customer's message, extract: name, description, productNumber, quantity and action."
+            "If action is search_product_by_productNumber, then you must extract productNumber."
+            "If action is search_products_by_description, then you must extract description. Be descriptive, use Customer message to extract any detail about the product and use it as description."
         ),
         "CART_AGENT": (
             "You are the CartAgent. PLAN ONLY cart mutations or views (add/update/remove/view/delete). No searching here.\n\n"

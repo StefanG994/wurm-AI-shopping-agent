@@ -1,33 +1,89 @@
-from enum import Enum
-from typing import Dict, List, Literal, Optional
+import json
+from pathlib import Path
+from typing import Dict, List, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
-class MessageCategory(Enum):
+FUNCTION_SCHEMA_FILES = [
+    "cart_agent_function_schema.json",
+    "order_agent_function_schema.json",
+    "search_agent_function_schema.json",
+    "communication_agent_function_schema.json",
+]
+SCHEMA_DIR = Path(__file__).parent / "gpt_handlers" / "gpt_agents" / "agent_function_schemas"
 
-    PRODUCT_SEARCH = ("product_search", "User is searching for products, product variant or product category.")
-    ADD_TO_CART = ("add_to_cart", "User wants to add items to cart")
-    VIEW_CART = ("view_cart", "User wants to view their shopping cart")
-    REMOVE_FROM_CART = ("remove_from_cart", "User wants to remove items from cart")
-    VIEW_ORDER = ("view_order", "User wants to look at shipping status of his last order")
-    GREETING = ("greeting", "User is greeting, saying hello or goodbye")
-    UNCLEAR = ("unclear", "User message is unclear or ambiguous")    
 
-    @property
-    def description(self):
-        return self.value[1]
+def _load_function_descriptions(schema_dir: Path, schema_files: List[str]) -> Dict[str, str]:
+    """Load the available tool/function descriptions so the prompt stays in sync with the schemas."""
+    descriptions: Dict[str, str] = {}
+    for schema_name in schema_files:
+        schema_path = schema_dir / schema_name
+        if not schema_path.exists():
+            raise FileNotFoundError(f"Schema file not found: {schema_path}")
 
-    
-def build_multi_intent_prompt(user_message: str, concise: bool = False) -> List[Dict[str, str]]:
-    categories_text = []
-    for category in MessageCategory:
-        categories_text.append(f"- {category.value}: {category.description}")
-    categories_list = "\n".join(categories_text)
+        try:
+            with schema_path.open("r", encoding="utf-8") as schema_file:
+                entries = json.load(schema_file)
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Unable to parse schema file: {schema_path}") from exc
 
-    if concise:
-        system_content = f"""Analyze the user's message for multiple intentions.\n\nCategories:\n{categories_list}\n\nInstructions:\n- Identify the primary intent (most important)\n- List all detected intents in logical order (intent_sequence)\n- Set is_multi_intent to true if more than one intent is found\n\nExample ("find me red shoes and add them to cart"):\nprimary_intent: "product_search"\nintent_sequence: ["product_search", "add_to_cart"]\nis_multi_intent: true"""
-    else:
-        system_content = f"""You are an AI assistant that analyzes user messages for multiple intentions.\n\nAvailable categories:\n{categories_list}\n\nAnalyze this user message and identify ALL intentions present, then determine the logical order of execution.\n\nInstructions:\n1. Identify the PRIMARY intention (most important)\n2. List ALL intentions found in the message (including the primary one) and sort them in the logical sequence of actions\n3. Provide a boolean flag "is_multi_intent" indicating if multiple intentions were detected or not\n\nExample for "find me red shoes and add them to cart":\n- primary_intent: "product_search"\n- intent_sequence: ["product_search", "add_to_cart"]\n- is_multi_intent: true"""
+        if isinstance(entries, dict):
+            entries = entries.get("functions", [])
+        if not isinstance(entries, list):
+            continue
+
+        for entry in entries:
+            name = entry.get("name")
+            description = entry.get("description")
+            if name and description:
+                descriptions[name] = description.strip()
+
+    return descriptions
+
+
+Name_to_description: Dict[str, str] = _load_function_descriptions(SCHEMA_DIR, FUNCTION_SCHEMA_FILES)
+
+if not Name_to_description:
+    raise ValueError("No function descriptions could be loaded from schema files.")
+
+categories_list = "\n".join(
+    f"- {name}: {description}"
+    for name, description in Name_to_description.items()
+)
+
+def build_multi_intent_prompt(user_message: str):
+    system_content = f"""
+    You are an AI shopping assistant that analyzes customer messages for multiple intentions.\n\n
+    Available actions with descriptions:\n{categories_list}\n\n
+    Analyze this user message and identify ALL intentions present, then determine the logical order of execution.\n\n
+    Instructions:\n
+    1. Identify the PRIMARY intention (most important), i.e. identify what customer's end GOAL is.\n
+    2. List ALL intentions found in the message (including the primary one) and sort them in the logical sequence of actions\n
+    3. Provide a GOAL intention separately
+    """
+
+    prompt = [
+        {"role": "system", "content": system_content},
+        {"role": "user", "content": user_message}
+    ]
+    return prompt
+goals_list = {
+        'PRODUCTS':'Searching products by product number, description, category or listing products, finding variants, cross selling etc.',
+        'CART':'Managing the shopping cart, including adding, updating, and removing items.',
+        'ORDERS':'Handling customer orders, including tracking and managing order status.',
+        'COMMUNICATION':'Facilitating communication between the customer and support agents.',
+        'UNKNOWN':'Handling unrecognized or ambiguous intents.'
+        }
+def build_primary_intent_prompt(user_message: str):
+    system_content = f"""
+    You are an AI shopping assistant that analyzes customer messages for multiple intentions.\n\n
+    Available actions with descriptions:\n{goals_list}\n\n
+    Analyze this user message and identify ALL intentions present, then determine the logical order of execution.\n\n
+    Instructions:\n
+    1. Identify the PRIMARY intention (most important), i.e. identify what customer's end GOAL is.\n
+    2. List ALL intentions found in the message (including the primary one) and sort them in the logical sequence of actions\n
+    3. Provide a GOAL intention separately
+    """
 
     prompt = [
         {"role": "system", "content": system_content},
@@ -38,26 +94,36 @@ def build_multi_intent_prompt(user_message: str, concise: bool = False) -> List[
 class MultiIntentResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    primary_intent: Literal[
-        'product_search',
+    intent_list_order: List[Literal[
         'add_to_cart',
-        'view_cart',
+        'update_cart_items',
         'remove_from_cart',
-        'view_order',
-        'greeting',
-        'unclear',
-    ]
-    intent_sequence: List[Literal[
-        'product_search',
-        'add_to_cart',
-        'view_cart',
-        'remove_from_cart',
-        'view_order',
-        'greeting',
-        'unclear',
+        'delete_cart',
+        'communication',
+        'fetch_orders_list',
+        'search_product_by_productNumber',
+        'search_products_by_description',
+        'list_products',
+        'product_listing_by_category',
+        'search_suggest',
+        'get_product',
+        'product_cross_selling',
+        'find_variant',
     ]]
-    is_multi_intent: bool = False
-    
+    # missing_properties: List[str] = []
+    goal: str
+    message: str
 
+class PrimaryGoals(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
-
+    intent_list_order: List[Literal[
+        'PRODUCTS',
+        'CART',
+        'ORDERS',
+        'COMMUNICATION',
+        'UNKNOWN',
+    ]]
+    # missing_properties: List[str] = []
+    goal: str
+    message: str

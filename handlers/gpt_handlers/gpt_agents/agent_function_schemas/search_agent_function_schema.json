@@ -16,7 +16,7 @@
         }
     },
     {
-        "name": "search_products",
+        "name": "search_products_by_description",
         "description": "Search products via /store-api/search with optional listing criteria and shorthand filters.",
         "parameters": {
             "type": "object",

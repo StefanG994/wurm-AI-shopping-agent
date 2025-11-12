@@ -42,7 +42,7 @@ class BaseAgent:
 		schema_path = os.path.join(base_dir, schema_dir, schema_name)
 		with open(schema_path, "r", encoding="utf-8") as f:
 			self.tools = json.load(f)
-			self.logger.info("[TEST]FUNCTION SCHEMA %s", self.tools)
+			# self.logger.info("[TEST]FUNCTION SCHEMA %s", self.tools)
 		
 	def get_action_schema(self, action_name: str) -> Dict[str, Any]:
 		if self.tools is None:
@@ -51,6 +51,7 @@ class BaseAgent:
 		for item in self.tools:
 			if item.get('name') == action_name:
 				return item
+		return {}
 
 	def get_function_parameter_info(self, function_name: str, params: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
 		function_schema = self.get_action_schema(function_name)
@@ -93,7 +94,6 @@ class BaseAgent:
 		system_prompt = get_translated_prompt(system_key, language_id=language_id, variables=variables or {})
 
 		msgs: List[Dict[str, str]] = [
-			{"role": "system", "content": "In the output JSON, 'steps' cannot be an empty array"},
 			{"role": "system", "content": system_prompt.strip()},
 			{"role": "user", "content": f"USER GOAL:\n{customerMessage}".strip()},
 			# {"role": "user", "content": "CONTEXT_OUTLINE:\n" + outline},
@@ -101,8 +101,6 @@ class BaseAgent:
 
 		if extra_prompt := self.include_additional_parts_to_prompt(extra_sections):
 			msgs.append(extra_prompt)
-
-		msgs.append({"role": "user", "content": "Return STRICT JSON with keys: mode, steps, done, response_text."})
 		
 		return msgs
 	
