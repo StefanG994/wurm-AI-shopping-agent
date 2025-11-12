@@ -8,20 +8,18 @@ class IntentAgent(BaseAgent):
 
     def __init__(self):
         super().__init__(name=self.__class__.__name__)
-        # START TESTING PART
-        self.load_function_schemas("search_agent_function_schema.json")
-        #self.get_function_parameter_info("search_product_by_productNumber")
-        # END TESTING PART
 
     async def classify_multi_intent(self, user_message: str) -> MultiIntentResponse:
         start = time.perf_counter()
-        prompt = build_multi_intent_prompt(user_message, True)
-        messages = prompt
+        prompt = build_multi_intent_prompt(user_message)
 
+        self.logger.info(f"INTENT CATEGORIZATION STARTED")
+           
+        # Use the standard chat completions API, not beta.parse
         intent_response = await asyncio.to_thread(
-            self.client.beta.chat.completions.parse,
+            self.client.chat.completions.parse,
             model=self.get_small_llm_model(),
-            messages=messages,
+            messages=prompt,
             response_format=MultiIntentResponse,
         )
 

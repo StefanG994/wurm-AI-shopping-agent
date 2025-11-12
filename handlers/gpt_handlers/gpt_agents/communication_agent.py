@@ -28,3 +28,9 @@ class CommunicationAgent(PlanningAgent):
 
         resp = await self.create_plan_with_tools("plan_communication", msgs, self.tools)
         return resp
+    
+    async def plan_and_execute(self, seed: Optional[Dict[str, Any]] = None,
+                                 customerMessage: str = "",
+                                 language_id: Optional[str] = None) -> Dict[str, Any]:
+        self.logger.info("Plan and execute called in Communication Agent")
+        return await self.plan_communication(seed or {}, customerMessage, language_id)

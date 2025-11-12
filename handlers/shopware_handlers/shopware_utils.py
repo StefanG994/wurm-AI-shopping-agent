@@ -145,8 +145,12 @@ class SimpleHeaderInfo():
     contextToken: Optional[str] = Field(None, description="Shopware sw-context-token if already known")
     languageId: Optional[str] = Field(None, description="sw-language-id header to localize responses")
     salesChannelId: Optional[str] = Field(None, description="Sales Channel ID from the storefront")
+    userNodeUuid: Optional[str] = Field(None, description="User's node in the graph (by uuid or customerNumber). A starting node for further search and episode adding.")
+    inputWasVoice: bool = Field(False, description="Indicates if the original message was voice input")
     
-    def __init__(self, request: ChatRequest):
+    def __init__(self, request: ChatRequest, user_node_uuid: Optional[str] = None, input_was_voice: bool = False):
         self.contextToken = request.contextToken
         self.languageId = request.languageId
         self.salesChannelId = request.salesChannelId
+        self.userNodeUuid = user_node_uuid
+        self.inputWasVoice = input_was_voice

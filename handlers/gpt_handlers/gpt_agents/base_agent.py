@@ -83,12 +83,7 @@ class BaseAgent:
 				language_id: Optional[str] = None,
 				variables: Optional[Dict[str, Any]] = None,
 				extra_sections: Optional[Dict[str, str]] = None) -> List[Dict[str, str]]:
-		"""
-		Build messages for any agent using:
-		- translated system prompt (by system_key)
-		- GPT-generated CONTEXT_OUTLINE (also translated instructions)
-		- optional extra sections (e.g., SEED)
-		"""
+
 		# outline = make_outline_via_gpt(customerMessage, history or [], last_result or {}, language_id=language_id)
 		system_prompt = get_translated_prompt(system_key, language_id=language_id, variables=variables or {})
 

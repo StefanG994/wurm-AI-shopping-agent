@@ -5,11 +5,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class MessageCategory(Enum):
 
-    PRODUCT_SEARCH = ("product_search", "User is searching for products, product variant or product category.")
-    ADD_TO_CART = ("add_to_cart", "User wants to add items to cart")
-    VIEW_CART = ("view_cart", "User wants to view their shopping cart")
-    REMOVE_FROM_CART = ("remove_from_cart", "User wants to remove items from cart")
-    VIEW_ORDER = ("view_order", "User wants to look at shipping status of his last order")
+    SEARCH = ("search", "User is searching for products, product variant or product category.")
+    CART = ("cart", "User wants to add items to cart, view their shopping cart, or remove items from cart")
+    ORDER = ("order", "User wants to look at shipping status of his last order")
     GREETING = ("greeting", "User is greeting, saying hello or goodbye")
     UNCLEAR = ("unclear", "User message is unclear or ambiguous")    
 
@@ -18,16 +16,13 @@ class MessageCategory(Enum):
         return self.value[1]
 
     
-def build_multi_intent_prompt(user_message: str, concise: bool = False) -> List[Dict[str, str]]:
+def build_multi_intent_prompt(user_message: str) -> List[Dict[str, str]]:
     categories_text = []
     for category in MessageCategory:
         categories_text.append(f"- {category.value}: {category.description}")
     categories_list = "\n".join(categories_text)
 
-    if concise:
-        system_content = f"""Analyze the user's message for multiple intentions.\n\nCategories:\n{categories_list}\n\nInstructions:\n- Identify the primary intent (most important)\n- List all detected intents in logical order (intent_sequence)\n- Set is_multi_intent to true if more than one intent is found\n\nExample ("find me red shoes and add them to cart"):\nprimary_intent: "product_search"\nintent_sequence: ["product_search", "add_to_cart"]\nis_multi_intent: true"""
-    else:
-        system_content = f"""You are an AI assistant that analyzes user messages for multiple intentions.\n\nAvailable categories:\n{categories_list}\n\nAnalyze this user message and identify ALL intentions present, then determine the logical order of execution.\n\nInstructions:\n1. Identify the PRIMARY intention (most important)\n2. List ALL intentions found in the message (including the primary one) and sort them in the logical sequence of actions\n3. Provide a boolean flag "is_multi_intent" indicating if multiple intentions were detected or not\n\nExample for "find me red shoes and add them to cart":\n- primary_intent: "product_search"\n- intent_sequence: ["product_search", "add_to_cart"]\n- is_multi_intent: true"""
+    system_content = f"""You are an AI assistant that analyzes user messages for multiple intentions.\n\nAvailable categories:\n{categories_list}\n\nAnalyze this user message and identify ALL intentions present, then determine the logical order of execution.\n\nInstructions:\n1. Identify the PRIMARY intention (most important)\n2. List ALL intentions found in the message (including the primary one) and sort them in the logical sequence of actions\n3. Extract the specific message part corresponding to each intent\n4. Provide a boolean flag "is_multi_intent" indicating if multiple intentions were detected or not\n\nExample for "find me red shoes and add them to cart":\n- primary_intent: "search"\n- intent_sequence: ["search", "cart"]\n- message_parts: ["find me red shoes", "add them to cart"]\n- is_multi_intent: true"""
 
     prompt = [
         {"role": "system", "content": system_content},
@@ -39,23 +34,23 @@ class MultiIntentResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     primary_intent: Literal[
-        'product_search',
-        'add_to_cart',
-        'view_cart',
-        'remove_from_cart',
-        'view_order',
+        'search',
+        'cart',
+        'order',
         'greeting',
         'unclear',
     ]
     intent_sequence: List[Literal[
-        'product_search',
-        'add_to_cart',
-        'view_cart',
-        'remove_from_cart',
-        'view_order',
+        'search',
+        'cart',
+        'order',
         'greeting',
         'unclear',
     ]]
+    message_parts: List[str] = Field(
+        description="Message parts corresponding to each intent in intent_sequence",
+        default_factory=list
+    )
     is_multi_intent: bool = False
     
 

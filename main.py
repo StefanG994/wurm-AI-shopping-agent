@@ -9,12 +9,9 @@ from graphiti.graphiti_memory import GraphitiMemory
 from graphiti.dependencies import get_mem
 from graphiti.ontology import ENTITY_TYPES, EDGE_TYPES, EDGE_TYPE_MAP
 from graphiti.context_builder import build_context_outline
-from handlers.gpt_handlers.gpt_agents.intent_agent import IntentAgent
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-
-from handlers.shopware_handlers.shopware_product_client import ProductClient  
 
 
 # ---------- Logging: rotating file + console ----------
@@ -46,6 +43,7 @@ logging.getLogger("shopware_ai.shopware").setLevel(root.level)
 # ----------------------------------------
 # FastAPI app with enhanced CORS, Helmet-like and Rate Limiting security
 # ----------------------------------------
+from handlers.gpt_handlers.gpt_agents.agent_coordinator import AgentCoordinator
 from handlers.gpt_handlers.gpt_agents.search_agent import SearchAgent
 from handlers.shopware_handlers.shopware_utils import ChatRequest, ChatResponse, SimpleHeaderInfo
 from middleware_security.cors_config import setup_cors
@@ -199,7 +197,8 @@ async def search_dev(q: str, mem: GraphitiMemory = Depends(get_mem)):
 # ------------------------------
 # Modify /chat to ingest & use context
 # ------------------------------
-from handlers.gpt_handler import _client
+
+agent_coordinator = AgentCoordinator()
 
 @app.post("/chat", response_model=ChatResponse)
 @limiter.limit("200/minute")
@@ -210,7 +209,6 @@ async def chat(
     mem: GraphitiMemory = Depends(get_mem),
 ):
     logging.getLogger("shopware_ai.middleware").info("REQUEST: %s", request)  # Remove in production
-    header_info = SimpleHeaderInfo(chat_request)
 
     # 0. The graph has multiple user nodes and products/actions linked to them. Find User's node in the graph (by uuid or customerNumber) and set it as a starting node for further search and episode adding.
     user_node_uuid = await _resolve_user_node(mem, chat_request)
@@ -222,61 +220,22 @@ async def chat(
     if not chat_request.customerMessage.strip():
         raise HTTPException(status_code=400, detail="Customer message is empty after normalization.")
 
+    header_info = SimpleHeaderInfo(chat_request, user_node_uuid, was_voice)
+
     # 2. Use GraphitiMemory to ingest the user message as an episode (grows long-term memory)
-    episode_name = f"user:{user_node_uuid}" if user_node_uuid else f"user:{chat_request.languageId or 'default'}"
-    await mem.add_episode_text(
-        name=episode_name,
-        text=chat_request.customerMessage,
-        description="user_message_voice" if was_voice else "user_message",
-        entity_types=ENTITY_TYPES,
-        edge_types=EDGE_TYPES,
-        edge_type_map=EDGE_TYPE_MAP,
-    )
-
-    # 3. Clarify user intent using Multi-Intent Classifier (from multi_intent.py)
-    intent_agent = IntentAgent()
-    intent_result = await intent_agent.classify_multi_intent(chat_request.customerMessage)
-    logging.getLogger("shopware_ai.middleware").info("Primary intent: %s", intent_result.primary_intent)
-    logging.getLogger("shopware_ai.middleware").info("Intent Steps: %s", intent_result.intent_sequence)
-
-    # START: TODO- FOR TESTING ONLY
-    #router_agent = RouterAgent(header_info)
-    #plan = await router_agent.plan_router(chat_request.customerMessage)
-    #logging.getLogger("shopware_ai.middleware").info("Planned route: %s", json.dumps(plan))
-    # agent = (plan.get("agent") or "").lower().strip()
-    # steps = plan.get("steps") or []
-    search_agent = SearchAgent()
-    shopware_client = ProductClient()
-    search_plan = await search_agent.plan_search(chat_request.customerMessage, chat_request.languageId)
-    logging.getLogger("shopware_ai.middleware").info("Planned route: %s", json.dumps(search_plan))
-    steps = search_plan.get("steps") or []
-
-    for step in steps:
-        action = step.get("action")
-        params = step.get("parameters") or {}
-        if action != "communication":
-            payload, missing_params = search_agent.get_function_parameter_info(action, params)
-            logging.getLogger("shopware_ai.middleware").info("PAYLOAD AFTER METHOD: %s", json.dumps(payload))
-            logging.getLogger("shopware_ai.middleware").info("MISSING AFTER METHOD: %s", missing_params)
-            await shopware_client.search_products(
-                search=params.get("search") or params.get("keywords") or "",
-                order=params.get("order"),
-                limit=params.get("limit"),
-                page=params.get("page"),
-                min_price=params.get("min_price"),
-                max_price=params.get("max_price"),
-                manufacturer=params.get("manufacturer"),
-                properties=params.get("properties"),
-                shipping_free=params.get("shipping_free"),
-                rating=params.get("rating"),
-                filter=params.get("filter"),
-                associations=params.get("associations") or None,
-                **{"context_token": header_info.contextToken, "language_id": header_info.languageId, "sales_channel_id": header_info.salesChannelId})
-    # END: TODO- FOR TESTING ONLY
-
-    #if action ne postoji/unclear -> pozvati komunikacijskog agenta i vrati nazad na intent agent
-    #if intent.action[0].methods.length > 0: onda pozovi router agenta
-    #Router agent daje akciju koju pozivamo
+    # episode_name = f"user:{user_node_uuid}" if user_node_uuid else f"user:{chat_request.languageId or 'default'}"
+    # await mem.add_episode_text(
+    #     name=episode_name,
+    #     text=chat_request.customerMessage,
+    #     description="user_message_voice" if was_voice else "user_message",
+    #     entity_types=ENTITY_TYPES,
+    #     edge_types=EDGE_TYPES,
+    #     edge_type_map=EDGE_TYPE_MAP,
+    # )
+   
+    #3. Use AgentCoordinator to analyze the message, determine intents, and plan actions (calls IntentAgent, RouterAgent, etc.)
+    agent_coordinator.set_header_info(header_info)
+    response = await agent_coordinator.process_chat_request(chat_request.customerMessage, mem)
 
     # 4. Choose the starting node and Build contextual outline from the graph (relevant products, cart items, user preferences, etc.)
     outline = await build_context_outline(
@@ -289,13 +248,13 @@ async def chat(
     return ChatResponse(
         ok=True,
         action="response",
-        message=f"(demo) Context outline:\n{outline}",
+        message=response["message"], #f"(demo) Context outline:\n{outline}",
         contextToken=chat_request.contextToken or "new-context-token",
         data={
             "note": "Replace this with GPT tool-use logic that calls Shopware APIs.",
             "userNodeUuid": user_node_uuid,
             "inputWasVoice": was_voice,
-            "intent": intent_result.model_dump(),
+            "contextOutline": outline,
         },
     )
     

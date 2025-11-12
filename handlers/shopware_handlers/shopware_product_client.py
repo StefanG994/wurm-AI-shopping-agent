@@ -11,7 +11,7 @@ class ProductClient(ShopwareBaseClient):
         super().__init__(*args, name=self.__class__.__name__, **kwargs)
         self.load_shopware_includes("shopware_product_includes.json")
 
-    async def search_products(
+    async def search_products_by_description(
         self,
         *,
         # Core search payload (per docs)
