@@ -182,12 +182,14 @@ class SearchAgent(BaseAgent):
         extraction = resp.choices[0].message.parsed
         if extraction is None:
             raise RuntimeError("Failed to parse search product response: parsed value is None")
-
+        
         search_response = ProductSearchResponse(**extraction.model_dump())
         self._merge_with_intent_hints(search_response, parsed_intents)
         payload = self._normalize_payload(search_response)
-        search_response.payload = payload
-
+        # _normalize_payload already sets search_response.payload to a SearchPayload instance.
+        # Avoid assigning a raw dict to the typed payload attribute to satisfy static type checking.
+        # keep the dict 'payload' for further processing.
+        
         missing = self._missing_required_fields(search_response.action, payload)
         search_response.missing = missing
 
@@ -227,8 +229,8 @@ class SearchAgent(BaseAgent):
                 )
                 for key, value in param_dict.items():
                     payload_data.setdefault(key, value)
-                if not search_response.description and isinstance(intent.parameters.get("search"), str):
-                    search_response.description = intent.parameters.get("search")
+                if not search_response.description and isinstance(param_dict.get("search"), str):
+                    search_response.description = param_dict.get("search")
                 if not search_response.intent_summary and intent.summary:
                     search_response.intent_summary = intent.summary
                 break
@@ -409,7 +411,13 @@ class SearchAgent(BaseAgent):
                 if not product_number:
                     raise ValueError("productNumber is required for search_product_by_productNumber")
                 lang_override = lang or header_info.languageId or ""
-                return await self.product_client.get_product_by_productNumber(product_number, language_id=lang_override or "en-GB")
+                res = await self.product_client.get_product_by_productNumber(product_number, language_id=lang_override or "en-GB")
+                # Normalize result to match return type Optional[Dict[str, Any]]
+                if res is None:
+                    return None
+                if isinstance(res, dict):
+                    return res
+                return {"product": res}
             if action == "list_products":
                 return await self.product_client.list_products(body=payload)
             if action == "product_listing_by_category":
