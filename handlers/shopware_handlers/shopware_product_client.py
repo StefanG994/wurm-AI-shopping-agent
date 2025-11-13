@@ -271,7 +271,7 @@ class ProductClient(ShopwareBaseClient):
         resp = await self._client.post(f"/product/{productId}/cross-selling", headers=headers, json=payload)
         return wrap_response(resp)
 
-    async def get_product_by_productNumber(self, productNumber: str, language_id: str) -> Optional[str]:
+    async def get_product_by_productNumber(self, productNumber: int, language_id: str) -> Optional[str]:
         """Fetch a product by productNumber and return full response."""
         url = "/product"
         headers = {
@@ -292,7 +292,7 @@ class ProductClient(ShopwareBaseClient):
         data = resp.json()
         return data
 
-    async def get_productId_by_productNumber(self, productNumber: str, language_id: str) -> Optional[str]:
+    async def get_productId_by_productNumber(self, productNumber: int, language_id: str) -> Optional[str]:
         """Fetch a product by productNumber and return its productId."""
         url = "/product"
         headers = {

@@ -5,7 +5,7 @@
         "parameters": {
             "type": "object",
             "properties": {
-                "productNumber": {"type": "string", "description": "Product number to search for"},
+                "productNumber": {"type": "integer", "description": "Product number to search for"},
                 "limit": {"type": "integer", "minimum": 1, "maximum": 100, "description":"Number of items per result page"},
                 "quantity":{"type" : "integer", "description": "Total number of items found"},
                 "page": {"type": "integer", "minimum": 1},

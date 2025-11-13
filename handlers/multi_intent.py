@@ -130,7 +130,7 @@ class ParsedIntent(BaseModel):
 class IntentParameters(BaseModel):
     model_config = ConfigDict(extra='forbid')
     search: str | None = None
-    productNumber: str | None = None
+    productNumber: int | None = None
     # add every field you expect
 
 class MultiIntentResponse(BaseModel):

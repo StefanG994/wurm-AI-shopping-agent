@@ -327,8 +327,6 @@ async def search_dev(q: str, mem: GraphitiMemory = Depends(get_mem)):
 # ------------------------------
 # Modify /chat to ingest & use context
 # ------------------------------
-from handlers.gpt_handler import _client
-
 @app.post("/chat", response_model=ChatResponse)
 @limiter.limit("200/minute")
 async def chat(
@@ -437,7 +435,7 @@ async def chat(
     response_message = pending_question or f"(demo) Context outline:\n{outline}"
 
     data: Dict[str, Any] = {
-        "note": "Replace this with GPT tool-use logic that calls Shopware APIs.",
+        "action": primary_goals.intent_list_order[0] if primary_goals.intent_list_order else "none",
         "userNodeUuid": user_node_uuid,
         "inputWasVoice": was_voice,
         "intent": primary_goals.model_dump(),

@@ -80,7 +80,7 @@ class CriteriaPayload(BaseModel):
 class SearchPayload(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    productNumber: str | None = None
+    productNumber: int | None = None
     search: str | None = None
     order: str | None = None
     limit: int | None = None
@@ -105,7 +105,7 @@ class SearchIntentExtraction(BaseModel):
 
     name: str | None = None
     description: str | None = None
-    productNumber: str | None = None
+    productNumber: int | None = None
     quantity: int | None = None
     action: Literal[
         "search_product_by_productNumber",

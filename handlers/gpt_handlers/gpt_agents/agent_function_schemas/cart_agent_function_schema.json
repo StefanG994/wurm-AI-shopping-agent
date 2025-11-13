@@ -11,7 +11,7 @@
                 "type": "object",
                 "properties": {
                     "productId": { "type": "string" },
-                    "productNumber": { "type": "string" },
+                    "productNumber": { "type": "integer" },
                     "quantity": { "type": "integer", "minimum": 1, "default": 1 }
                 },
                 "anyOf": [
