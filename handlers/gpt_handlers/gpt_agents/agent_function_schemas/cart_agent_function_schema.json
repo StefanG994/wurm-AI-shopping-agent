@@ -1,6 +1,6 @@
 [
      {
-        "name": "add_to_cart",
+        "name": "add_line_items",
         "description": "Add one or more products to the cart by product numbers or IDs.",
         "parameters": {
             "type": "object",

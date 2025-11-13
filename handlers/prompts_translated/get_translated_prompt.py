@@ -168,7 +168,7 @@ _PROMPTS: Dict[str, Dict[str, str]] = {
             "- ONLY if some required parameter is missing in user messge: return one communication step asking for the missing piece.\n\n"
             # "ALLOWED TOOLS:\n${SEARCH_TOOLS}\n\n"
             "ALLOWED ACTIONS:\n"
-            "- communication\n- search_product_by_productNumber\n- search_products\n- list_products\n"
+            "- communication\n- search_product_by_productNumber\n- search_products_by_description\n- list_products\n"
             "- product_listing_by_category\n- search_suggest\n- get_product\n- product_cross_selling\n- find_variant\n\n"
             "OUTPUT (STRICT JSON):\n"
             "{\n"
@@ -183,13 +183,19 @@ _PROMPTS: Dict[str, Dict[str, str]] = {
             "- For add_to_cart you may accept productNumber OR productId.\n"
             "- Enforce minPurchase/purchaseSteps/maxPurchase if provided via context.\n"
             "- If required info (like quantity) is missing, return a single communication step. In that step provide extra data like minPurchase, purchaseSteps, maxPurchase, stock, available.\n\n"
+            "- When the user says \"add first X to cart\", use the actual productNumber values from the first X elements in SEED[\"elements\"]. Do not use sequential numbers (\"1\", \"2\", \"3\"), but the real productNumber field from each product object."
+            " Example:"
+            "   SEED: {\"elements\": [{\"productNumber\": \"10037444\"}, {\"productNumber\": \"10041070\"}, ...]}"
+            "   User: \"Add first 2 to cart\""
+            "   Action: Add items with productNumber \"10037444\" and \"10041070\" to the cart."
             # "ALLOWED TOOLS:\n${CART_TOOLS}\n\n"
             "ALLOWED ACTIONS:\n"
-            "- communication\n- add_to_cart\n- update_cart_items\n- remove_from_cart\n- delete_cart\n\n"
+            "- communication\n- add_line_items\n- update_cart_items\n- remove_from_cart\n- delete_cart\n\n"
+            "- when returning action don't put functions. prefix.\n\n"
             "OUTPUT (STRICT JSON):\n"
             "{\n"
             '  \"mode\": \"single\",\n'
-            '  \"steps\": [{ \"action\": \"<communication|add_to_cart|...>\", \"parameters\": { ... } }],\n'
+            '  \"steps\": [{ \"action\": \"<communication|add_line_items|...>\", \"parameters\": { ... } }],\n'
             '  \"done\": true,\n'
             '  \"response_text\": \"<one short line for the UI>\"\n'
             "}"

@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Any, Dict, Iterable, Mapping, Optional
 
 from .shopware_base_client import ShopwareBaseClient
-from .shopware_utils import wrap_response
+from .shopware_utils import SimpleHeaderInfo, wrap_response
 
 class CartClient(ShopwareBaseClient):
     def __init__(self, *args, **kwargs):
@@ -49,8 +49,7 @@ class CartClient(ShopwareBaseClient):
         self,
         *,
         items: Iterable[Mapping[str, Any]],
-        context_token: Optional[str],
-        language_id: Optional[str] = None,
+        header_info: Optional[SimpleHeaderInfo] = None,
     ) -> Dict[str, Any]:
         """Add items to cart."""
         payload = {"items": list(items)}
@@ -58,9 +57,9 @@ class CartClient(ShopwareBaseClient):
             "Accept": "application/json",
             "Content-Type": "application/json",
             "sw-access-key": self.access_key,
-            "sw-context-token": context_token,
+            "sw-context-token": header_info.contextToken if header_info else None,
         }
-        params = {'sw-language-id': language_id}
+        params = {'sw-language-id': header_info.languageId if header_info else None}
         self.logger.debug("add_line_items: headers=%s, payload=%s", headers, payload)
         resp = await self._client.post("/checkout/cart/line-item", headers=headers, json=payload, params=params)
         return wrap_response(resp)

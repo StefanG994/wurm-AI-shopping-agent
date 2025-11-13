@@ -4,7 +4,7 @@ import httpx
 from copy import deepcopy
 
 from .shopware_base_client import ShopwareBaseClient
-from .shopware_utils import wrap_response
+from .shopware_utils import SimpleHeaderInfo, wrap_response
 
 class ProductClient(ShopwareBaseClient):
     def __init__(self, *args, **kwargs):
@@ -14,102 +14,12 @@ class ProductClient(ShopwareBaseClient):
     async def search_products_by_description(
         self,
         *,
-        # Core search payload (per docs)
-        search: Optional[str] = None,
-        filter: Optional[List[Dict[str, Any]]] = None,
-        sort: Optional[List[Dict[str, Any]]] = None,
-        post_filter: Optional[List[Dict[str, Any]]] = None,
-        page: Optional[int] = None,
-        term: Optional[str] = None,
-        limit: Optional[int] = None,
-        ids: Optional[List[str]] = None,
-        query: Optional[str] = None,
-        associations: Optional[Dict[str, Any]] = None,
-        aggregations: Optional[List[Dict[str, Any]]] = None,
-        fields: Optional[List[str]] = None,
-        grouping: Optional[List[str]] = None,
-        quantity_mode: Optional[str] = None,
-        # Listing flags from the storefront layer
-        order: Optional[str] = None,
-        p: Optional[int] = None,  # query-string page (Shopware supports ?p=)
-        manufacturer: Optional[str] = None,
-        min_price: Optional[float] = None,
-        max_price: Optional[float] = None,
-        rating: Optional[int] = None,
-        shipping_free: Optional[bool] = None,
-        properties: Optional[str] = None,
-        manufacturer_filter: Optional[bool] = None,
-        price_filter: Optional[bool] = None,
-        rating_filter: Optional[bool] = None,
-        shipping_free_filter: Optional[bool] = None,
-        property_filter: Optional[bool] = None,
-        property_whitelist: Optional[str] = None,
-        reduce_aggregations: Optional[str] = None,
-        no_aggregations: Optional[str] = None,
-        only_aggregations: Optional[str] = None,
-        # Back-compat direct body merge (optional)
-        body: Optional[Mapping[str, Any]] = None,
+        payload: Dict[str, Any],
         # Headers
-        context_token: Optional[str] = None,
-        language_id: Optional[str] = None,
-        sales_channel_id: Optional[str] = None,
+        header_info: Optional[SimpleHeaderInfo] = None,
         extra_headers: Optional[Mapping[str, str]] = None,
     ) -> Dict[str, Any]:
-        # START: TODO switch this part so that we get only payload and headers
-        payload: Dict[str, Any] = {} if body is None else dict(body)
-
-        def put(k: str, v: Any) -> None:
-            if v is not None:
-                payload[k] = v
-
-        # Core body
-        put("search", search)
-        put("filter", filter)
-        put("sort", sort)
-        if post_filter is not None:
-            payload["post-filter"] = post_filter
-        put("page", page)
-        put("term", term)
-        put("limit", limit)
-        put("ids", ids)
-        put("query", query)
-        put("associations", associations)
-        put("aggregations", aggregations)
-        put("fields", fields)
-        put("grouping", grouping)
-        if quantity_mode is not None:
-            payload["quantity-mode"] = quantity_mode
-
-        # Storefront flags
-        put("order", order)
-        put("manufacturer", manufacturer)
-        if min_price is not None:
-            payload["min-price"] = min_price
-        if max_price is not None:
-            payload["max-price"] = max_price
-        put("rating", rating)
-        if shipping_free is not None:
-            payload["shipping-free"] = shipping_free
-        put("properties", properties)
-        if manufacturer_filter is not None:
-            payload["manufacturer-filter"] = manufacturer_filter
-        if price_filter is not None:
-            payload["price-filter"] = price_filter
-        if rating_filter is not None:
-            payload["rating-filter"] = rating_filter
-        if shipping_free_filter is not None:
-            payload["shipping-free-filter"] = shipping_free_filter
-        if property_filter is not None:
-            payload["property-filter"] = property_filter
-        if property_whitelist is not None:
-            payload["property-whitelist"] = property_whitelist
-        if reduce_aggregations is not None:
-            payload["reduce-aggregations"] = reduce_aggregations
-        if no_aggregations is not None:
-            payload["no-aggregations"] = no_aggregations
-        if only_aggregations is not None:
-            payload["only-aggregations"] = only_aggregations
-
+        
         self.logger.info("[TEST] PAYLOAD IN SEARCH}, body=%s", payload)
         # END: TODO switch this part so that we get only payload and headers
         # Headers + params
@@ -117,22 +27,32 @@ class ProductClient(ShopwareBaseClient):
             "Accept": "application/json",
             "Content-Type": "application/json",
             "sw-access-key": self.access_key,
-            "sw-context-token": context_token
+            "sw-context-token": header_info.contextToken if header_info else "",
         }
-        params: Dict[str, Any] = {"sw-language-id": language_id}
-        if p is not None:
-            params["p"] = p
+
+        # Includes handling
+        payload["includes"] = self.merge_includes(default_includes=self.get_action_includes("Default"), user_includes=payload.get("includes", {}))
+        self.logger.info("[TEST] PAYLOAD INCLUDES}, body=%s", payload["includes"])
+        # if payload.get("includes") is not None:
+        #     existing = payload.get("includes") or {}
+        #     payload["includes"] = self.merge_includes(payload.get("includes"), existing) if isinstance(existing, dict) else payload.get("includes")
+        # if use_default_includes:
+        #     payload["includes"] = self.merge_includes(DEFAULT_INCLUDES, payload.get("includes", {}))
+
+        params: Dict[str, Any] = {"sw-language-id": header_info.languageId if header_info else None}
+        # if p is not None:
+        #     params["p"] = p
 
         self.logger.info("search_products: params=%s, headers=%s, body=%s", params, headers, payload)
         try:
             resp = await self._client.post("/search", headers=headers, json=payload, params=params)
             resp.raise_for_status()
         except httpx.HTTPStatusError as e:
-            if resp.status_code == 412 and context_token:
+            if resp.status_code == 412 and header_info and header_info.contextToken:
                 self.logger.warning("search_products: 412 with context token; retrying without token")
                 hdrs = self.create_header(
-                    context_token=None,  # <- drop the token
-                    language_id=language_id,
+                    context_token=None,
+                    language_id=header_info.languageId if header_info else None,
                     extra=headers,
                 )
 

@@ -4,6 +4,7 @@ import logging
 from typing import Dict, Any, Optional
 from handlers.gpt_handlers.gpt_agents.planning_agent import PlanningAgent
 from handlers.shopware_handlers.shopware_product_client import ProductClient
+from handlers.shopware_handlers.shopware_utils import SimpleHeaderInfo
 
 class SearchAgent(PlanningAgent):
 
@@ -26,9 +27,9 @@ class SearchAgent(PlanningAgent):
     
     async def plan_and_execute(self, seed: Optional[Dict[str, Any]] = None,
                                  customerMessage: str = "",
-                                 language_id: Optional[str] = None) -> Dict[str, Any]:
+                                 header_info: Optional[SimpleHeaderInfo] = None) -> Dict[str, Any]:
         self.logger.info("Plan and execute called in Search Agent")
-        search_plan = await self.plan_search(seed or {}, customerMessage, language_id)
+        search_plan = await self.plan_search(seed or {}, customerMessage, language_id=header_info.languageId if header_info else None)
 
         steps = search_plan.get("steps") or []
         for step in steps:
@@ -42,6 +43,6 @@ class SearchAgent(PlanningAgent):
             shopware_method = getattr(self.shopware_client, action, None)
             if callable(shopware_method):
                 self.logger.info(f"Executing method for action '{action}'")
-                return await shopware_method(payload)
+                return await shopware_method(payload=payload, header_info=header_info)
             else:
                 self.logger.error(f"No method found for action '{action}'")

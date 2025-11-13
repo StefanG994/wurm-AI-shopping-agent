@@ -5,6 +5,7 @@ import time
 from typing import Any, Dict, List, Optional
 from handlers.gpt_handlers.gpt_agents.base_agent import BaseAgent
 from handlers.shopware_handlers.shopware_base_client import ShopwareBaseClient
+from handlers.shopware_handlers.shopware_utils import SimpleHeaderInfo
 
 class PlanningAgent(BaseAgent):
 
@@ -47,7 +48,7 @@ class PlanningAgent(BaseAgent):
     
     async def plan_and_execute(self, seed: Optional[Dict[str, Any]] = None,
                                  customerMessage: str = "",
-                                 language_id: Optional[str] = None) -> Dict[str, Any]:
+                                 header_info: Optional[SimpleHeaderInfo] = None) -> Dict[str, Any]:
         self.logger.info("Plan and execute called in base PlanningAgent")
         raise NotImplementedError("Subclasses must implement plan_and_execute method")
     

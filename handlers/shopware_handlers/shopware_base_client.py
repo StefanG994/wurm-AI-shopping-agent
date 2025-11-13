@@ -1,7 +1,7 @@
 from __future__ import annotations
 import json
 import os
-from typing import Any, Dict, Mapping, Optional
+from typing import Any, Dict, List, Mapping, Optional
 import httpx
 from dotenv import load_dotenv
 import logging
@@ -71,14 +71,28 @@ class ShopwareBaseClient:
         with open(includes_path, "r", encoding="utf-8") as f:
             self.includes =  json.load(f)
 
-    def get_action_includes(self, action_name: str) -> Any:
+    def get_action_includes(self, predefined_includes_group: str) -> Any:
 
         for item in self.includes:
             for includes_name, includes_value in item.items():
-                if includes_name == action_name or includes_name.lower() == action_name.lower():
+                if includes_name == predefined_includes_group or includes_name.lower() == predefined_includes_group.lower():
                     return includes_value
 
         return {}
+    
+    def merge_includes(self,
+        user_includes: Optional[Mapping[str, List[str]]],
+        default_includes: Optional[Mapping[str, List[str]]] = None,
+    ) -> Dict[str, List[str]]:
+
+        result: Dict[str, List[str]] = {}
+        bases = [default_includes or {}, user_includes or {}]
+        for inc in bases:
+            for alias, fields in inc.items():
+                existing = set(result.get(alias, []))
+                existing.update(fields or [])
+                result[alias] = list(existing)
+        return result
 
     async def aclose(self) -> None:
         if self._owns_client:

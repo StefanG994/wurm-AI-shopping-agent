@@ -2,6 +2,7 @@ from __future__ import annotations
 import json
 from typing import Dict, Any, List, Optional
 from handlers.gpt_handlers.gpt_agents.planning_agent import PlanningAgent
+from handlers.shopware_handlers.shopware_utils import SimpleHeaderInfo
 
 class CommunicationAgent(PlanningAgent):
 
@@ -31,6 +32,6 @@ class CommunicationAgent(PlanningAgent):
     
     async def plan_and_execute(self, seed: Optional[Dict[str, Any]] = None,
                                  customerMessage: str = "",
-                                 language_id: Optional[str] = None) -> Dict[str, Any]:
+                                 header_info: Optional[SimpleHeaderInfo] = None) -> Dict[str, Any]:
         self.logger.info("Plan and execute called in Communication Agent")
-        return await self.plan_communication(seed or {}, customerMessage, language_id)
+        return await self.plan_communication(seed or {}, customerMessage, language_id=header_info.languageId if header_info else None)

@@ -107,7 +107,7 @@ class AgentCoordinator:
                 specialized_plan = await specialized_agent.plan_and_execute(
                     seed=context_data,
                     customerMessage=message_part,
-                    language_id=self.header_info.languageId
+                    header_info=self.header_info
                 )
                 
                 self.logger.info("  → SPECIALIZED PLAN for intent '%s': %s", intent, json.dumps(specialized_plan, default=str))
@@ -122,8 +122,7 @@ class AgentCoordinator:
                 sequence_results.append(step_result)
                 
                 # Update context for next step (extract useful data from this step's results)
-                if "steps" in specialized_plan and specialized_plan["steps"]:
-                    context_data[f"step_{i+1}_results"] = specialized_plan["steps"]
+                context_data[f"step_{i+1}_results"] = specialized_plan["data"] if "data" in specialized_plan else specialized_plan
                 
             except Exception as e:
                 self.logger.error("Multi-intent step %d failed: %s", i+1, str(e))

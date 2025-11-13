@@ -235,7 +235,7 @@ async def chat(
    
     #3. Use AgentCoordinator to analyze the message, determine intents, and plan actions (calls IntentAgent, RouterAgent, etc.)
     agent_coordinator.set_header_info(header_info)
-    response = await agent_coordinator.process_chat_request(chat_request.customerMessage, mem)
+    process_response = await agent_coordinator.process_chat_request(chat_request.customerMessage, mem)
 
     # 4. Choose the starting node and Build contextual outline from the graph (relevant products, cart items, user preferences, etc.)
     outline = await build_context_outline(
@@ -248,7 +248,7 @@ async def chat(
     return ChatResponse(
         ok=True,
         action="response",
-        message=response["message"], #f"(demo) Context outline:\n{outline}",
+        message=process_response["message"], #f"(demo) Context outline:\n{outline}",
         contextToken=chat_request.contextToken or "new-context-token",
         data={
             "note": "Replace this with GPT tool-use logic that calls Shopware APIs.",
