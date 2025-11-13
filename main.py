@@ -1,5 +1,6 @@
 import os, sys
-from typing import Optional, Dict, Any, Tuple
+from datetime import datetime, timezone
+from typing import Optional, Dict, Any, Tuple, List
 import logging
 from logging.handlers import RotatingFileHandler
 import json
@@ -9,12 +10,12 @@ from graphiti.graphiti_memory import GraphitiMemory
 from graphiti.dependencies import get_mem
 from graphiti.ontology import ENTITY_TYPES, EDGE_TYPES, EDGE_TYPE_MAP
 from graphiti.context_builder import build_context_outline
+from graphiti_core.nodes import EntityNode
+from graphiti_core.edges import EntityEdge
 from handlers.gpt_handlers.gpt_agents.intent_agent import IntentAgent
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-
-from handlers.shopware_handlers.shopware_product_client import ProductClient  
 
 
 # ---------- Logging: rotating file + console ----------
@@ -46,7 +47,7 @@ logging.getLogger("shopware_ai.shopware").setLevel(root.level)
 # ----------------------------------------
 # FastAPI app with enhanced CORS, Helmet-like and Rate Limiting security
 # ----------------------------------------
-from handlers.gpt_handlers.gpt_agents.search_agent import SearchAgent
+from handlers.gpt_handlers.gpt_agents.search_agent import SearchAgent, ProductQuery
 from handlers.shopware_handlers.shopware_utils import ChatRequest, ChatResponse, SimpleHeaderInfo
 from middleware_security.cors_config import setup_cors
 from middleware_security.security import setup_security_headers
@@ -139,6 +140,133 @@ async def _resolve_user_node(mem: GraphitiMemory, chat_request: ChatRequest) -> 
             if str(node_type).lower() == "user":
                 return node.uuid
     return None
+
+
+async def _persist_product_queries(
+    mem: GraphitiMemory,
+    *,
+    group_id: str,
+    product_queries: List[ProductQuery],
+    user_node_uuid: Optional[str],
+    intent_label: Optional[str],
+) -> None:
+    """Create ProductConcept, Brand, and ProductProperty nodes for the current request."""
+    if not product_queries:
+        return
+
+    node_cache: Dict[str, EntityNode] = {}
+    now = datetime.now(timezone.utc)
+    graph = mem.client
+    embedder = getattr(graph, "embedder", None) if graph else None
+
+    async def _save_node(key: str, node: EntityNode) -> EntityNode:
+        if embedder is not None:
+            await node.generate_name_embedding(embedder)
+        await mem.save_entity_node(node)
+        node_cache[key] = node
+        return node
+
+    for query in product_queries:
+        product_key = f"product::{group_id}::{query.label.lower()}"
+        product_node = node_cache.get(product_key)
+        if product_node is None:
+            product_node = EntityNode(
+                name=query.label,
+                summary=intent_label or "Product requested by customer",
+                group_id=group_id,
+                labels=["ProductConcept"],
+                attributes={"source": "customer_message"},
+            )
+            product_node = await _save_node(product_key, product_node)
+
+    async def _save_edge(edge: EntityEdge) -> None:
+        if embedder is not None:
+            await edge.generate_embedding(embedder)
+            await mem.save_entity_edge(edge)
+
+        if user_node_uuid:
+            await _save_edge(
+                EntityEdge(
+                    group_id=group_id,
+                    source_node_uuid=user_node_uuid,
+                    target_node_uuid=product_node.uuid,
+                    created_at=now,
+                    name="WANTS",
+                    fact=f"User is interested in {query.label}",
+                )
+            )
+
+        if query.brand:
+            brand_key = f"brand::{query.brand.lower()}"
+            brand_node = node_cache.get(brand_key)
+            if brand_node is None:
+                brand_node = EntityNode(
+                    name=query.brand,
+                    summary="Brand mentioned by customer",
+                    group_id=group_id,
+                    labels=["Brand"],
+                    attributes={"source": "customer_message"},
+                )
+                brand_node = await _save_node(brand_key, brand_node)
+
+            await _save_edge(
+                EntityEdge(
+                    group_id=group_id,
+                    source_node_uuid=product_node.uuid,
+                    target_node_uuid=brand_node.uuid,
+                    created_at=now,
+                    name="HAS_BRAND",
+                    fact=f"{query.label} brand: {query.brand}",
+                )
+            )
+
+        for prop in query.properties or []:
+            prop_key = f"property::{prop.name.lower()}::{prop.value.lower()}"
+            property_node = node_cache.get(prop_key)
+            if property_node is None:
+                property_node = EntityNode(
+                    name=f"{prop.name}: {prop.value}",
+                    summary="Product property requested by customer",
+                    group_id=group_id,
+                    labels=["ProductProperty"],
+                    attributes={"property": prop.name, "value": prop.value},
+                )
+                property_node = await _save_node(prop_key, property_node)
+
+            await _save_edge(
+                EntityEdge(
+                    group_id=group_id,
+                    source_node_uuid=product_node.uuid,
+                    target_node_uuid=property_node.uuid,
+                    created_at=now,
+                    name="HAS_PROPERTY",
+                    fact=f"{query.label} requires {prop.name}={prop.value}",
+                )
+            )
+
+    if intent_label:
+        intent_key = f"intent::{group_id}::{intent_label.lower()}"
+        intent_node = node_cache.get(intent_key)
+        if intent_node is None:
+            intent_node = EntityNode(
+                name=intent_label,
+                summary=intent_label,
+                group_id=group_id,
+                labels=["Intent"],
+            )
+            intent_node = await _save_node(intent_key, intent_node)
+
+        if user_node_uuid:
+            await _save_edge(
+                EntityEdge(
+                    group_id=group_id,
+                    source_node_uuid=user_node_uuid,
+                    target_node_uuid=intent_node.uuid,
+                    created_at=now,
+                    name="HAS_INTENT",
+                    fact=intent_label,
+                )
+            )
 
 # ------------------------------
 # Routes
@@ -235,8 +363,10 @@ async def chat(
     # logging.getLogger("shopware_ai.middleware").info("Message: %s", intent_result.message)
     # logging.getLogger("shopware_ai.middleware").info("Customer's goal: %s", intent_result.goal)
 
+    group_id = user_node_uuid or chat_request.uuid or (chat_request.languageId or "default")
+
     # 3. Use GraphitiMemory to ingest the user message as an episode (grows long-term memory)
-    episode_name = f"user:{user_node_uuid}" if user_node_uuid else f"user:{chat_request.languageId or 'default'}"
+    episode_name = f"user:{group_id}"
     await mem.add_episode_text(
         name=episode_name,
         text=f"user {user_node_uuid} goal: {primary_goals.goal}" if user_node_uuid else f"user:{chat_request.languageId or 'default'} goal: {primary_goals.goal}",
@@ -245,15 +375,19 @@ async def chat(
         edge_types=EDGE_TYPES,
         edge_type_map=EDGE_TYPE_MAP,
     )
-    # add json model dump as episode
-    await mem.add_episode_json(
-        name=episode_name,
-        payload=primary_goals.model_dump(),
-        description="user_message_voice" if was_voice else "user_message",
-        entity_types=ENTITY_TYPES,
-        edge_types=EDGE_TYPES,
-        edge_type_map=EDGE_TYPE_MAP,
-    )
+    # # add json model dump as episode
+    # await mem.add_episode_json(
+    #     name=episode_name,
+    #     payload=primary_goals.model_dump(),
+    #     description="user_message_voice" if was_voice else "user_message",
+    #     entity_types=ENTITY_TYPES,
+    #     edge_types=EDGE_TYPES,
+    #     edge_type_map=EDGE_TYPE_MAP,
+    # )
+
+    last_search_response: Any = None
+    search_result_payload: Optional[Dict[str, Any]] = None
+    pending_question: Optional[str] = None
 
     # Zvati funkciju koja ide po primary_goals.intent_list_order listi i poziva odgovarajuce agente
     for action in primary_goals.intent_list_order:
@@ -264,11 +398,26 @@ async def chat(
             search_response = await search_agent.plan_search(
                 chat_request.customerMessage,
                 language_id=chat_request.languageId,
+                header_info=header_info,
+                parsed_intents=primary_goals.parsed_intents,
             )
             logging.getLogger("shopware_ai.middleware").info("Search Agent Response: %s", search_response)
+            last_search_response = search_response
+            if search_response.product_queries:
+                await _persist_product_queries(
+                    mem,
+                    group_id=group_id,
+                    product_queries=search_response.product_queries,
+                    user_node_uuid=user_node_uuid,
+                    intent_label=search_response.intent_summary or primary_goals.goal,
+                )
+            if search_response.shopware_response:
+                search_result_payload = search_response.shopware_response
+            if search_response.communication:
+                pending_question = search_response.communication.message
             # Add json episode to memory
             await mem.add_episode_json(
-                name=f"search_response_user:{user_node_uuid}" if user_node_uuid else f"search_response_user:{chat_request.languageId or 'default'}",
+                name=f"search_response_user:{group_id}",
                 payload=search_response.model_dump(),
                 description="search_agent_response",
                 entity_types=ENTITY_TYPES,
@@ -285,17 +434,28 @@ async def chat(
         center_node_uuid=user_node_uuid,
     )
 
+    response_message = pending_question or f"(demo) Context outline:\n{outline}"
+
+    data: Dict[str, Any] = {
+        "note": "Replace this with GPT tool-use logic that calls Shopware APIs.",
+        "userNodeUuid": user_node_uuid,
+        "inputWasVoice": was_voice,
+        "intent": primary_goals.model_dump(),
+    }
+    if search_result_payload is not None:
+        data["searchResult"] = search_result_payload
+    if last_search_response is not None:
+        data["searchAction"] = last_search_response.action
+        data["searchPayload"] = last_search_response.payload
+    if pending_question:
+        data["pendingQuestion"] = pending_question
+
     return ChatResponse(
         ok=True,
         action="response",
-        message=f"(demo) Context outline:\n{outline}",
+        message=response_message,
         contextToken=chat_request.contextToken or "new-context-token",
-        data={
-            "note": "Replace this with GPT tool-use logic that calls Shopware APIs.",
-            "userNodeUuid": user_node_uuid,
-            "inputWasVoice": was_voice,
-            "intent": primary_goals.model_dump(),
-        },
+        data=data,
     )
     
 

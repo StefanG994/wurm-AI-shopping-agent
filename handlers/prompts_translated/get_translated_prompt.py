@@ -162,11 +162,14 @@ _PROMPTS: Dict[str, Dict[str, str]] = {
             'When the user indicates an intent to see the order status (e.g., "order status", "give me my order status", "what\'s my last order status"), set agent="order" with fetch_orders_list.'
         ),
         "SEARCH_AGENT": (
-            "You are the SearchAgent. Process the Customer's message and focus on the product."
+            "You are the SearchAgent. Process the customer's message and focus on the product intent.\n"
             "ALLOWED TOOLS:\n${SEARCH_TOOLS}\n\n"
-            "From Customer's message, extract: name, description, productNumber, quantity and action."
-            "If action is search_product_by_productNumber, then you must extract productNumber."
-            "If action is search_products_by_description, then you must extract description. Be descriptive, use Customer message to extract any detail about the product and use it as description."
+            "Return STRICT JSON with fields: name, description, productNumber, quantity, action, payload, product_queries, intent_summary.\n"
+            "- payload: dictionary ready for the chosen Shopware function. Use parameter names and requirements from SEARCH_TOOLS. Always include required parameters when available.\n"
+            "- product_queries: array of objects {\"label\": str, \"brand\": str | null, \"properties\": [{\"name\": str, \"value\": str}] } so we can build graph nodes (e.g., label=\"earbuds\", brand=\"Sony\", property name=\"color\", value=\"yellow\").\n"
+            "- intent_summary: one short sentence capturing the shopping intent (e.g., \"Find yellow Sony earbuds\").\n"
+            "If action is search_product_by_productNumber, you must provide productNumber (and set payload.productNumber).\n"
+            "If action is search_products_by_description, you must provide a descriptive payload.search string derived from the customer's wording."
         ),
         "CART_AGENT": (
             "You are the CartAgent. PLAN ONLY cart mutations or views (add/update/remove/view/delete). No searching here.\n\n"

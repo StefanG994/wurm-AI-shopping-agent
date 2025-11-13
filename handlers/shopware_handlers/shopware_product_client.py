@@ -177,6 +177,27 @@ class ProductClient(ShopwareBaseClient):
         resp = await self._client.post("/product", headers=headers, json=payload)
         return wrap_response(resp)
 
+    async def search_suggest(
+        self,
+        *,
+        body: Optional[Mapping[str, Any]] = None,
+        context_token: Optional[str] = None,
+        language_id: Optional[str] = None,
+        sales_channel_id: Optional[str] = None,
+        extra_headers: Optional[Mapping[str, str]] = None,
+    ) -> Dict[str, Any]:
+        """Call /search-suggest with an arbitrary body."""
+        payload = deepcopy(body or {})
+        headers = self.create_header(
+            context_token=context_token,
+            language_id=language_id,
+            sales_channel_id=sales_channel_id,
+            extra=extra_headers,
+        )
+        self.logger.debug("search_suggest: headers=%s, body=%s", headers, payload)
+        resp = await self._client.post("/search-suggest", headers=headers, json=payload)
+        return wrap_response(resp)
+
     async def find_variant(
         self,
         productId: str,
@@ -228,6 +249,28 @@ class ProductClient(ShopwareBaseClient):
         resp = await self._client.post(f"/product-listing/{category_id}", params=params, headers=headers, json=payload)
         return wrap_response(resp)
 
+    async def product_cross_selling(
+        self,
+        productId: str,
+        *,
+        body: Optional[Mapping[str, Any]] = None,
+        context_token: Optional[str] = None,
+        language_id: Optional[str] = None,
+        sales_channel_id: Optional[str] = None,
+        extra_headers: Optional[Mapping[str, str]] = None,
+    ) -> Dict[str, Any]:
+        """Fetch cross-selling groups for a given product."""
+        payload = deepcopy(body or {})
+        headers = self.create_header(
+            context_token=context_token,
+            language_id=language_id,
+            sales_channel_id=sales_channel_id,
+            extra=extra_headers,
+        )
+        self.logger.debug("product_cross_selling: productId=%s, headers=%s, body=%s", productId, headers, payload)
+        resp = await self._client.post(f"/product/{productId}/cross-selling", headers=headers, json=payload)
+        return wrap_response(resp)
+
     async def get_product_by_productNumber(self, productNumber: str, language_id: str) -> Optional[str]:
         """Fetch a product by productNumber and return full response."""
         url = "/product"
@@ -249,7 +292,7 @@ class ProductClient(ShopwareBaseClient):
         data = resp.json()
         return data
 
-    async def get_productId_by_number(self, productNumber: str, language_id: str) -> Optional[str]:
+    async def get_productId_by_productNumber(self, productNumber: str, language_id: str) -> Optional[str]:
         """Fetch a product by productNumber and return its productId."""
         url = "/product"
         headers = {

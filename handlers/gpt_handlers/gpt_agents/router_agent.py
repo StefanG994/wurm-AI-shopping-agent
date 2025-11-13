@@ -1,11 +1,11 @@
 from __future__ import annotations
 from typing import Dict, Any, Optional
 from handlers.gpt_handlers.gpt_agents.intent_agent import IntentAgent
-from handlers.gpt_handlers.gpt_agents.planning_agent import PlanningAgent
+from handlers.gpt_handlers.gpt_agents.base_agent import BaseAgent
 from handlers.gpt_handlers.gpt_agents.search_agent import SearchAgent
 from handlers.shopware_handlers.shopware_utils import SimpleHeaderInfo
 
-class RouterAgent(PlanningAgent):
+class RouterAgent(BaseAgent):
     
     def __init__(self, header_info: SimpleHeaderInfo):
         super().__init__(name=self.__class__.__name__)
@@ -32,5 +32,5 @@ class RouterAgent(PlanningAgent):
             variables=None
         )
 
-        resp = await self.create_plan("plan_route", msgs)   
-        return resp
+        # resp = await self.create_plan("plan_route", msgs)   
+        # return resp

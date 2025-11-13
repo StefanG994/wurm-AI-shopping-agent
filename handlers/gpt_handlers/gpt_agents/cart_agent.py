@@ -1,8 +1,8 @@
 from __future__ import annotations
 from typing import Dict, Any, List, Optional
-from handlers.gpt_handlers.gpt_agents.planning_agent import PlanningAgent
+from handlers.gpt_handlers.gpt_agents.base_agent import BaseAgent
 
-class CartAgent(PlanningAgent):
+class CartAgent(BaseAgent):
 
     def __init__(self):
         super().__init__(name=self.__class__.__name__)
@@ -17,5 +17,5 @@ class CartAgent(PlanningAgent):
             language_id=language_id,
             variables={"CART_TOOLS": self.tools}
         )
-        resp = await self.create_plan_with_tools("plan_cart", msgs, self.tools)
-        return resp
+        # resp = #napraviti klasu i pozivanje ka OpenAI
+        # return resp

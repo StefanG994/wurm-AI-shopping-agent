@@ -209,7 +209,7 @@ class GraphitiMemory:
         """Fetch an Entity node by UUID (thin wrapper)."""
         g = self._need()
         # Graphiti exposes class methods like get_by_uuid; we call via our DB driver through underlying client.
-        driver = g.neo4j._driver  # access underlying AsyncDriver
+        driver = g.driver  # access underlying driver
         return await EntityNode.get_by_uuid(driver, uuid)  # type: ignore[attr-defined]
 
     async def save_entity_node(
@@ -218,25 +218,25 @@ class GraphitiMemory:
     ) -> Any:
         """Create/update an Entity node."""
         g = self._need()
-        driver = g.neo4j._driver
+        driver = g.driver
         return await node.save(driver)  # type: ignore[attr-defined]
 
     async def delete_entity_node(self, node: EntityNode) -> Any:
         """Hard delete an Entity node (DETACH DELETE)."""
         g = self._need()
-        driver = g.neo4j._driver
+        driver = g.driver
         return await node.delete(driver)  # type: ignore[attr-defined]
 
     async def save_entity_edge(self, edge: EntityEdge) -> Any:
         """Create/update an Entity edge."""
         g = self._need()
-        driver = g.neo4j._driver
+        driver = g.driver
         return await edge.save(driver)  # type: ignore[attr-defined]
 
     async def delete_entity_edge(self, edge: EntityEdge) -> Any:
         """Hard delete an Entity edge."""
         g = self._need()
-        driver = g.neo4j._driver
+        driver = g.driver
         return await edge.delete(driver)  # type: ignore[attr-defined]
 
     # ------------------- explicit fact triples -------------------

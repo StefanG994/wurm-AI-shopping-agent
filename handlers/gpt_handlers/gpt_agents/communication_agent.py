@@ -1,9 +1,9 @@
 from __future__ import annotations
 import json
 from typing import Dict, Any, List, Optional
-from handlers.gpt_handlers.gpt_agents.planning_agent import PlanningAgent
+from handlers.gpt_handlers.gpt_agents.base_agent import BaseAgent
 
-class CommunicationAgent(PlanningAgent):
+class CommunicationAgent(BaseAgent):
 
     def __init__(self):
         super().__init__(name=self.__class__.__name__)
@@ -26,5 +26,4 @@ class CommunicationAgent(PlanningAgent):
             extra_sections={"SEED": json.dumps(seed, ensure_ascii=False)}
         )
 
-        resp = await self.create_plan_with_tools("plan_communication", msgs, self.tools)
-        return resp
+        # return await self.create_plan_with_tools("plan_communication", msgs)
